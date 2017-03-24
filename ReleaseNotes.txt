@@ -1,0 +1,29 @@
+///**************************** BRTOS for Cooja - Release Notes ****************************\\\
+///                                                                                         \\\
+
+///========================= { BRTOS v. 2.00 } { Contiki v. 3.00 } =========================\\\
+		
+Release:	20170315
+Notes:		> Added stdout and assert modules at lib folder;
+			> Add uNet modules (unet_core, terminal, etc.);
+			> Changed makefile directives and hardware.h;
+			> Added CC2520 driver, but ins't fully working, under tests
+			> Changed makefile to generate outputs and bins at specific folders and abled to
+			  compile the server/client by parameter UNET_DEVICE_TYPE (PAN_COORDINATOR|ROUTER)
+			> Removed warnings from compilation
+			
+Notices:	> BRTOSConfig VERBOSE == 1 take the PC register to 0x00, don't know why
+			> BRTOSConfig TASKS_WITH_PARAMETRS == 1, doesn't supported by current MSP430 port
+
+///========================= { BRTOS v. 2.00 } { Contiki v. 3.00 } =========================\\\
+
+Release:	20170219
+Notes:		> BRTOS working with Z1 (MSP430F2617) and Wismote (MSP430F5437) under Cooja
+			  simulator;
+			> MCU setup to use all memory region (-mlarge -mcode-region=either);
+			
+Notices:	> When changed the code region Cooja simulator doesn't work with
+			  "-g" CFLAG, needed to change it to -gstabs+;
+			> Assembly " SUBX.A #(n),Rx " appears to have some bug;
+
+///=========================================================================================\\\
