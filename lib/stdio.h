@@ -18,10 +18,13 @@
 
 
 
-int sprintf_lib(char *out, const char *format, ...);
-int snprintf_lib( char *buf, unsigned int count, const char *format, ... );
-int printf_lib(const char *format, ...);
+//int sprintf_lib(char *out, const char *format, ...);
+//int snprintf_lib( char *buf, unsigned int count, const char *format, ... );
+//int printf_lib(const char *format, ...);
 
+
+#define snprintf_lib(buf, count, ... )  printf(__VA_ARGS__)
+#define sprintf(out, ...)               printf(__VA_ARGS__)
 void printf(char *format, ...);
 #define PRINTF(...) printf(__VA_ARGS__)
 

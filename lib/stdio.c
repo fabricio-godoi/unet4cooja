@@ -338,24 +338,24 @@ static int print( char **out, const char *format, va_list args )
 }
 
 
-int sprintf_lib(char *out, const char *format, ...)
-{
-        va_list args;
-
-        va_start( args, format );
-        return print( &out, format, args );
-}
-
-
-int snprintf_lib( char *buf, unsigned int count, const char *format, ... )
-{
-        va_list args;
-
-        ( void ) count;
-
-        va_start( args, format );
-        return print( &buf, format, args );
-}
+//int sprintf_lib(char *out, const char *format, ...)
+//{
+//        va_list args;
+//
+//        va_start( args, format );
+//        return print( &out, format, args );
+//}
+//
+//
+//int snprintf_lib( char *buf, unsigned int count, const char *format, ... )
+//{
+//        va_list args;
+//
+//        ( void ) count;
+//
+//        va_start( args, format );
+//        return print( &buf, format, args );
+//}
 
 int printf_lib(const char *format, ...)
 {
