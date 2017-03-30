@@ -36,12 +36,14 @@ typedef union
     uint8_t     u8[2];
     struct /* bitfields are not portable. Use bit mask instead! */
     {
+        // 0 to 7
     	uint8_t   FrameType       :3;
         uint8_t   SecurityEnabled :1;
         uint8_t   FramePending    :1;
         uint8_t   ACKRequest      :1;
         uint8_t   IntraPAN        :1;
         uint8_t          		  :1;
+    	// 8 to 15
         uint8_t          		  :1;
         uint8_t          		  :1;
         uint8_t   DstAddrMode     :2;

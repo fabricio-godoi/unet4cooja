@@ -3,6 +3,19 @@
 
 ///========================= { BRTOS v. 2.00 } { Contiki v. 3.00 } =========================\\\
 		
+Release:	20170329
+Notes:		> Update stdio to use just one printf;
+			> Updated CC2520, now working properly sending and receiveing;
+			> uNet tasks working with one client;
+			> Updated HAL.h, NOP commands needed in context changes;
+			> Added endianness check to the code;
+			> Disabled all unused functions and codes;
+			
+Notices:	> CC2520 still not using ACK messages, but can enabled with the commented code;
+			> uNet still not working properly, with more then one client;
+			
+///========================= { BRTOS v. 2.00 } { Contiki v. 3.00 } =========================\\\
+		
 Release:	20170315
 Notes:		> Added stdout and assert modules at lib folder;
 			> Add uNet modules (unet_core, terminal, etc.);

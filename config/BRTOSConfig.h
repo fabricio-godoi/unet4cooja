@@ -14,6 +14,13 @@
 /// Define if simulation or DEBUG
 #define DEBUG 1
 
+/**
+ * Configure processor endiannes (see MCU datasheet)
+ * BRTOS_BIG_ENDIAN              (0)
+ * BRTOS_LITTLE_ENDIAN           (1)
+ */
+#define ENDIANNESS	1
+
 /// Define if verbose info is available
 #define VERBOSE 0			/// TODO: code crash if it's enabled, why?
 							/// INFO: some tasks initialize,
@@ -60,7 +67,7 @@
 
 /// Define the maximum number of Tasks to be Installed
 /// must always be equal or higher to NumberOfInstalledTasks
-#define NUMBER_OF_TASKS (INT8U)13 // TODO check this number for uNET  (uNet = 12)
+#define NUMBER_OF_TASKS (INT8U)9 // TODO check this number for uNET  (uNet = 12)
 
 /// Define if OS Trace is active
 #define OSTRACE 0
@@ -134,7 +141,7 @@
 #define INTERVAL 8000
 
 // Stack Size of the Idle Task
-#define IDLE_STACK_SIZE     2*NUMBER_MIN_OF_STACKED_BYTES	/// double of minimum stack size
+#define IDLE_STACK_SIZE     4*NUMBER_MIN_OF_STACKED_BYTES	/// double of minimum stack size
 
 /// Stack Defines
 /// msp430f2274 1KB RAM (total)

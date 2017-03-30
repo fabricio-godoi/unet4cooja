@@ -80,6 +80,7 @@
  */
 
  /* ENABLE CSn (active low) */
+extern void clock_delay(unsigned int i);
 #define CC2520_SPI_ENABLE()     do{ UCB0CTL1 &= ~UCSWRST;  clock_delay(5); P3OUT &= ~BIT0;clock_delay(5);}while(0)
  /* DISABLE CSn (active low) */
 #define CC2520_SPI_DISABLE()    do{clock_delay(5);UCB0CTL1 |= UCSWRST;clock_delay(1); P3OUT |= BIT0;clock_delay(5);}while(0)

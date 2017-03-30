@@ -15,6 +15,9 @@
 #define DEBUG_PRINTF						1
 #define NEIGHBOURHOOD_SIZE   				(8)
 #define UNET_RADIO 							cc2520_driver
+/**
+ * Define de radio endianness, this is critical to ieee 802.15.4 Frame Control
+ */
 #define RADIO_AUTOCRC						TRUE
 #define UNET_DEFAULT_STACKSIZE  			512 		// Default value 448 bytes
 
@@ -106,7 +109,7 @@
 #if (CONTIKI_MAC_ENABLE == 1)
 #define TX_TIMEOUT       20
 #else
-#define TX_TIMEOUT       50
+#define TX_TIMEOUT       1000//50
 #endif
 #define PING_TIME		 10
 #define MAX_PING_TIME	  8
@@ -202,8 +205,13 @@
 #ifdef COOJA_H_
 #undef MAC16_INIT_VALUE
 #undef PANID_INIT_VALUE
-#define PANID_INIT_VALUE   0xff,0xff /// TODO what the hell is this value for?
+#define PANID_INIT_VALUE   0x47,0x42 /// TODO what the hell is this value for?
+#define COORDINATOR_ID 0
+#if COORDINATOR_ID == 0
 #define MAC16_INIT_VALUE 0x00,(0x00|(node_id-1))
+#else
+#define MAC16_INIT_VALUE 0x00,(0x00|(node_id))
+#endif
 #endif
 
 #endif

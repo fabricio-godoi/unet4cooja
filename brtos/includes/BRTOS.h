@@ -88,6 +88,10 @@
 #define BRTOS_BIG_ENDIAN              (0)
 #define BRTOS_LITTLE_ENDIAN           (1)
 
+#ifdef ENDIANNESS
+#define BRTOS_ENDIAN	ENDIANNESS
+#endif
+
 #ifndef BRTOS_TH
 #define BRTOS_TH                      OS_CPU_TYPE
 #endif

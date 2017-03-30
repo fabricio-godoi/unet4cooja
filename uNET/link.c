@@ -269,8 +269,14 @@ void link_parent_switch(void)
 #ifdef COOJA_H_
 		// Make link between node and parent
 		// TODO probably should clear the last link
-		PRINTF("#L %d 0;red\n",unet_neighbourhood[node_data_get(NODE_PARENTINDEX)].Addr_16b); // Clear last parent
-		PRINTF("#L %d 1;red\n",unet_neighbourhood[parent_idx].Addr_16b);	// Setup the new parent
+		// TODO parent isn't really the path to the coordinator?
+#if COORDINATOR_ID == 0
+		PRINTF("#L %d 0;red\n",(unet_neighbourhood[node_data_get(NODE_PARENTINDEX)].Addr_16b+1)); // Clear last parent
+		PRINTF("#L %d 1;red\n",(unet_neighbourhood[parent_idx].Addr_16b+1));	// Setup the new parent
+#else
+		PRINTF("#L %d 0;red\n",(unet_neighbourhood[node_data_get(NODE_PARENTINDEX)].Addr_16b)); // Clear last parent
+		PRINTF("#L %d 1;red\n",(unet_neighbourhood[parent_idx].Addr_16b));	// Setup the new parent
+#endif
 #endif
 
 		node_data_set(NODE_PARENTINDEX, parent_idx);

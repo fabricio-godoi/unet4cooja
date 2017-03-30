@@ -20,7 +20,7 @@ static int channel;
 volatile unsigned char pkt_len;
 
 
-#define CC2520_DEBUG
+//#define CC2520_DEBUG // NOTE: this could cause Cooja simulator to crash, probably problem with interruptions
 #ifdef CC2520_DEBUG
 #define CC2520_PRINTF  				PRINTF
 #define CC2520_PRINTF_PACKET(buf,len)	packet_print(buf,len)
@@ -33,7 +33,7 @@ volatile unsigned char pkt_len;
 /* Configuration */
 #define WITH_SEND_CCA 1
 #define FOOTER_LEN 2
-#define ACK_LENGTH 5
+#define CC2520_ACK_LENGTH 5
 #define FOOTER1_CRC_OK      0x80
 #define FOOTER1_CORRELATION 0x7f
 
@@ -147,8 +147,8 @@ void cc2520_set_pan_addr(unsigned pan, unsigned addr, const uint8_t *ieee_addr) 
 	tmp[1] = pan >> 8;
 	CC2520_WRITE_RAM(&tmp, CC2520RAM_PANID, 2);
 
-	tmp[0] = addr & 0xff;
-	tmp[1] = addr >> 8;
+	tmp[0] = addr & 0xff; /// L byte
+	tmp[1] = addr >> 8;   /// H byte
 	CC2520_WRITE_RAM(&tmp, CC2520RAM_SHORTADDR, 2);
 	if (ieee_addr != NULL) {
 		int f;
@@ -174,27 +174,24 @@ void cc2520_set_tx_power(uint8_t pwr) {
 static void cc2520_rx_disable(void) {
 	// need to set the RXENABLE0 register
 	/* Disable packet reception */
-//	set_short_add_mem(CC2520_RXENABLE0, 0b00000100);
-	strobe(CC2520_INS_SRXMASKBITCLR); /// TODO check if the rx is disabled
+	setreg(CC2520_RXENABLE0, 0x00); //  Does not abort ongoing TX/RX,
+									// goes to idle when TX/RX is done
 }
 /*---------------------------------------------------------------------------*/
 static void cc2520_rx_enable(void) {
 	/* Enable packet reception */
-	setreg(CC2520_RXENABLE0, 0b00000000);
-	strobe(CC2520_INS_SRXON); /// TODO check if the rx is enabled
+	strobe(CC2520_INS_SRXON); // Enable RX, set RXENABLE[15] register
+							  // This strobe abort ongoing transmissions
 }
 /*---------------------------------------------------------------------------*/
 /**
- * \brief Get radio status
- *
- *        This routine returns the CC2520 status.
+ * \brief Set radio configurations
+ * \param opt radio options
+ * \param value for setting the specific option value
+ * \return -1 on error, 0 without error
  */
-//uint8_t cc2520_get_status(void) {
-//	return ((get_long_add_mem(CC2520_RFSTATE) & 0xE0) >> 5);
-//}
-
 int cc2520_set(radio_opt_t opt, uint8_t value) {
-	cc2520_radio_params.param[opt] = value; // refresh mem information
+	cc2520_radio_params.param[opt] = value; // refresh local mem information
 	switch (opt) {
 	case RADIO_STATE:
 #if 0
@@ -214,40 +211,40 @@ int cc2520_set(radio_opt_t opt, uint8_t value) {
 		cc2520_set_channel(value);
 		break;
 	case MACADDR16H:
-		CC2520_WRITE_RAM(value, CC2520RAM_SHORTADDR + 1, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_SHORTADDR + 1, 1);
 		break;
 	case MACADDR16L:
-		CC2520_WRITE_RAM(value, CC2520RAM_SHORTADDR, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_SHORTADDR, 1);
 		break;
 	case PANID16H:
-		CC2520_WRITE_RAM(value, CC2520RAM_PANID + 1, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_PANID + 1, 1);
 		break;
 	case PANID16L:
-		CC2520_WRITE_RAM(value, CC2520RAM_PANID, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_PANID, 1);
 		break;
 	case MACADDR64_7:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 7, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 7, 1);
 		break;
 	case MACADDR64_6:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 6, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 6, 1);
 		break;
 	case MACADDR64_5:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 5, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 5, 1);
 		break;
 	case MACADDR64_4:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 4, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 4, 1);
 		break;
 	case MACADDR64_3:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 3, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 3, 1);
 		break;
 	case MACADDR64_2:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 2, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 2, 1);
 		break;
 	case MACADDR64_1:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR + 1, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR + 1, 1);
 		break;
 	case MACADDR64_0:
-		CC2520_WRITE_RAM(value, CC2520RAM_IEEEADDR, 1);
+		CC2520_WRITE_RAM(&value, CC2520RAM_IEEEADDR, 1);
 		break;
 #if 0
 		case MACADDR16:
@@ -274,46 +271,63 @@ int cc2520_set(radio_opt_t opt, uint8_t value) {
 	return 0;
 }
 
+/**
+ * \brief Get radio configurations
+ * \param opt radio options from radio_opt_t enum
+ * \param value of return of the radio configuration
+ * \return -1 on error, 0 without error
+ */
 int cc2520_get(radio_opt_t opt, uint8_t *value) {
 	*value = cc2520_radio_params.param[opt];
 
 	switch(opt){
+//		case MACADDR16:
+//			CC2520_READ_RAM(value, CC2520RAM_SHORTADDR, 2);
+//			break;
 		case MACADDR16H:
-			CC2520_READ_RAM(*value, CC2520RAM_SHORTADDR + 1, 1);
+			CC2520_READ_RAM(value, CC2520RAM_SHORTADDR + 1, 1);
 			break;
 		case MACADDR16L:
-			CC2520_READ_RAM(*value, CC2520RAM_SHORTADDR, 1);
+			CC2520_READ_RAM(value, CC2520RAM_SHORTADDR, 1);
 			break;
+//		case PANID:
+//			CC2520_READ_RAM(value, CC2520RAM_PANID, 2);
+//			break;
 		case PANID16H:
-			CC2520_READ_RAM(*value, CC2520RAM_PANID + 1, 1);
+			CC2520_READ_RAM(value, CC2520RAM_PANID + 1, 1);
 			break;
 		case PANID16L:
-			CC2520_READ_RAM(*value, CC2520RAM_PANID, 1);
+			CC2520_READ_RAM(value, CC2520RAM_PANID, 1);
 			break;
+//		case MACADDR64:
+//			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR, 8);
+//			break;
 		case MACADDR64_7:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 7, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 7, 1);
 			break;
 		case MACADDR64_6:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 6, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 6, 1);
 			break;
 		case MACADDR64_5:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 5, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 5, 1);
 			break;
 		case MACADDR64_4:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 4, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 4, 1);
 			break;
 		case MACADDR64_3:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 3, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 3, 1);
 			break;
 		case MACADDR64_2:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 2, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 2, 1);
 			break;
 		case MACADDR64_1:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR + 1, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR + 1, 1);
 			break;
 		case MACADDR64_0:
-			CC2520_READ_RAM(*value, CC2520RAM_IEEEADDR, 1);
+			CC2520_READ_RAM(value, CC2520RAM_IEEEADDR, 1);
+			break;
 		default:
+			return -1;
 			break;
 	}
 
@@ -335,6 +349,7 @@ int splhigh_(void) {
 	asmv("mov r2, %0" : "=r" (sr));
 	asmv("bic %0, r2" : : "i" (GIE));
 #endif
+	__no_operation(); // must be set after updating GIE /// Fabricio
 	return sr & GIE; /* Ignore other sr bits. */
 }
 #define splhigh() splhigh_()
@@ -348,9 +363,8 @@ int splhigh_(void) {
  */
 int cc2520_init(const void *isr_handler) {
 
-	uint8_t i;
-	const addr64_t mac_addr64 = { .u8 = { PANID_INIT_VALUE, 0x00, 0x00, 0x00,
-			0x00, MAC16_INIT_VALUE } };
+//	const addr64_t mac_addr64 = { .u8 = { PANID_INIT_VALUE, 0x00, 0x00, 0x00,
+//			0x00, MAC16_INIT_VALUE } };
 	//uint16_t shortaddr;
 	//uint16_t panid;
 
@@ -358,7 +372,7 @@ int cc2520_init(const void *isr_handler) {
 
 	CC2520_SPI_PORT_INIT();
 
-	int s = splhigh();
+//	int s = splhigh();
 
 	/* all input by default, set these as output */
 	CC2520_CSN_PORT(DIR) |= BV(CC2520_CSN_PIN);
@@ -375,9 +389,8 @@ int cc2520_init(const void *isr_handler) {
 
 	// Configure interruption event (rising edge)
 	CC2520_DISABLE_FIFOP_INT(); /// TODO this is the default configuration
-//	CC2520_ENABLE_FIFOP_INT();
 	CC2520_FIFOP_INT_INIT();
-	splx(s);
+//	splx(s);
 
 	/* Set the IO pins direction */
 //	CC2520_PIN_INIT();  above (BRTOS portion)
@@ -458,7 +471,7 @@ int cc2520_init(const void *isr_handler) {
 	/* Set FIFOP threshold to maximum .*/
 	setreg(CC2520_FIFOPCTRL, FIFOP_THR(0x7F));
 
-	cc2520_set_pan_addr(0xffff, 0x0000, NULL);
+	cc2520_set_pan_addr(0xffff,0x0000,NULL);
 	cc2520_set_channel(CHANNEL_INIT_VALUE);
 
 
@@ -493,8 +506,8 @@ int cc2520_prepare(const void *data, unsigned short len) {
 }
 /*---------------------------------------------------------------------------*/
 int cc2520_transmit(void) {
-	uint8_t state;
-	int i, txpower;
+//	uint8_t state;
+	int i;
 
 	/* The TX FIFO can only hold one packet. Make sure to not overrun
 	 * FIFO by waiting for transmission to start here and synchronizing
@@ -517,6 +530,7 @@ int cc2520_transmit(void) {
 	strobe(CC2520_INS_STXON);
 #endif /* WITH_SEND_CCA */
 
+	// Start transmitting without ACK
 	radio_txing(TRUE);
 	radio_tx_acked(FALSE);
 
@@ -526,14 +540,14 @@ int cc2520_transmit(void) {
 
 			if (!(status() & BV(CC2520_TX_ACTIVE))) {
 				/* SFD went high but we are not transmitting. This means that
-				 we just started receiving a packet, so we drop the
-				 transmission. */
-				radio_txing(FALSE);
+				 we just started receiving a packet, so we drop the transmission. */
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 				UNET_RADIO.set(TX_RETRIES, 0);
-				// Compatibility with unet_router, since there is no TX interrupt to confirm if the packet was sent
-				OSSemPost(Radio_TX_Event);
+				//// Maybe change it to maxretry?
+//				UNET_RADIO.set(TX_STATUS,RADIO_TX_ERR_MAXRETRY);
+//				UNET_RADIO.set(TX_RETRIES,tx_status.bits.TXNRETRY);
 				CC2520_PRINTF("cc2520: TX Collision\n");
+				_isr_handler(); // call the unet handler, since the tx isr will not occour
 
 				return 0; //RADIO_TX_COLLISION;
 			}
@@ -542,7 +556,6 @@ int cc2520_transmit(void) {
 			 accurate measurement of the transmission time.*/
 			//BUSYWAIT_UNTIL(getreg(CC2520_EXCFLAG0) & TX_FRM_DONE , RTIMER_SECOND / 100);
 //			BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
-
 			while(!(status() & BV(CC2520_TX_ACTIVE))); // wait the end of transmission
 
 			/**
@@ -552,26 +565,21 @@ int cc2520_transmit(void) {
 			 *	symbol periods after being received.
 			 */
 
+			/// TODO ACK Disabled until project specification is completed
+			// Check if ACK message return is needed
+//			UNET_RADIO.get(RADIO_STATE,&state);
 //			if (is_radio_tx_ack(state)){ // will need to wait ack
 ////				// TX sent, but no acked
 //				UNET_RADIO.set(TX_STATUS, RADIO_TX_WAIT);
-//				CC2520_PRINTF("cc2520: TX WAIT\n");
+//				radio_tx_acked(FALSE);
+//				CC2520_PRINTF("cc2520: TX WAIT\n"); // waiting ack
 //			} else {
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
 				UNET_RADIO.set(TX_RETRIES, 0);
-				UNET_RADIO.get(RADIO_STATE,&state);
 				radio_tx_acked(TRUE);
-				radio_txing(FALSE); // waited end of transmission
-				// Compatibility with unet_router, since there is no TX interrupt to confirm if the packet was sent
-				OSSemPost(Radio_TX_Event);
-
-				CC2520_PRINTF("cc2520: TX OK\n");
+//				CC2520_PRINTF("cc2520: TX OK\n");
+				_isr_handler();
 //			}
-			// Compatibility with unet_router, since there is no TX interrupt to confirm if the packet was sent
-//			OSSemPost(Radio_TX_Event);
-
-
-
 			return 0; //RADIO_TX_OK;
 		}
 	}
@@ -580,13 +588,15 @@ int cc2520_transmit(void) {
 	 transmitted because of other channel activity. */
 //  RIMESTATS_ADD(contentiondrop);
 
-	radio_txing(FALSE);
-	UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION);
+
+
+	UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 	UNET_RADIO.set(TX_RETRIES, 0);
-	// Compatibility with unet_router, since there is no TX interrupt to confirm if the packet was sent
-	OSSemPost(Radio_TX_Event);
-	CC2520_PRINTF("cc2520: do_send() transmission never start paramed\n");
-	CC2520_PRINTF("cc2520: TX Collision2\n");
+//	radio_txing(FALSE);
+//	radio_tx_acked(FALSE); // done in write
+	CC2520_PRINTF("cc2520: do_send() transmission never start\n");
+	CC2520_PRINTF("cc2520: TX Collision\n");
+	_isr_handler(); // call the unet handler, since the tx isr will not occour
 
 	return 0; //RADIO_TX_COLLISION;
 }
@@ -596,15 +606,15 @@ int cc2520_write(const void *buf, uint16_t len) {
 	uint8_t *frame_control = (uint8_t *) buf;
 
 	CC2520_PRINTF("cc2520: write: ");
-	CC2520_PRINTF_PACKET(buf, len);
+	CC2520_PRINTF_PACKET(frame_control, len);
 	/// Check with the IEEE frame control if ACK is needed
 	/// TODO maybe should be in unet_core
-	if (*frame_control == 0x41) {
-		PRINTF("cc2520: ACK NOT needed!\n");
+	if (frame_control[0] == 0x41) {
+		CC2520_PRINTF("cc2520: ACK NOT needed!\n"); // TODO CC2520 changeit
 		radio_tx_ack(FALSE);
 	}
-	if (*frame_control == 0x61) {
-		PRINTF("cc2520: ACK needed!\n");
+	if (frame_control[0] == 0x61) {
+		CC2520_PRINTF("cc2520: ACK needed!\n"); // TODO CC2520 changeit
 		radio_tx_ack(TRUE);
 	}
 
@@ -618,7 +628,7 @@ int cc2520_write(const void *buf, uint16_t len) {
  *        This routine is used to retrieve a message stored in the RX_FIFO
  */
 int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
-	volatile uint8_t i, len;
+	volatile uint8_t len;
 	uint8_t footer[2];
 
 	CC2520_INTERRUPT_ENABLE_CLR();
@@ -631,6 +641,10 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 	}
 
 	CC2520_READ_FIFO_BYTE(len);
+	if(len == CC2520_ACK_LENGTH){
+		CC2520_PRINTF("cc2520: ack %d\n",len);
+	}
+
 //	len = pkt_len;
 	CC2520_PRINTF("cc2520: read: %d bytes\n",len);
 
@@ -677,7 +691,6 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 	cc2520_rx_enable();
 	CC2520_INTERRUPT_ENABLE_SET();
 
-//	return len == 0 ? -1 : len;
 	return len;
 }
 /*---------------------------------------------------------------------------*/
@@ -687,11 +700,14 @@ int cc2520_read(const void *buf, uint16_t *len) {
 }
 
 
-volatile unsigned char read;
-
 /// INFO FIFOP interrupt, indicates RX activity
 #define interrupt(x) void __attribute__((interrupt (x)))
 interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
+
+	// ************************
+	// Entrada de interrupcao
+	// ************************
+	OS_INT_ENTER();
 
 	//// TODO there is an exception table, which contains the events (status)
 	////      of transmission and receptions, which must be used
@@ -707,45 +723,31 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 		// Clear interrupt flag
 		CC2520_CLEAR_FIFOP_INT();
 
-//		CC2520_PRINTF("cc2520: int packet arrived2\n");
+//		uint8_t rx_length;
 
-		// ************************
-		// Entrada de interrupcao
-		// ************************
-		OS_INT_ENTER();
-
-//		read = getreg(CC2520_RXFIRST);
-//		if(read == ACK_LENGTH){
-//			UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
-//			UNET_RADIO.set(TX_RETRIES, 0);
-//			radio_tx_acked(TRUE);
-//		}
-
-//
-//		CC2520_READ_FIFO_BYTE(pkt_len);
-//		if ( pkt_len == ACK_LENGTH ) // ACK length
-//		{
-////			PRINTF("a\n");
-//			UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
-//			UNET_RADIO.set(TX_RETRIES, 0);
-//			radio_tx_acked(TRUE);
-////			PRINTF("cc2520: tx acked\n");
-//		}
-		/// TODO check this, from BRTOS
+		// Disable radio (BRTOS)
 		cc2520_rx_disable();
-		radio_rxing(TRUE);
+
+		/// TODO ACK Disabled until project specification is completed
+		// Check if it's a ACK message
+//		rx_length = getreg(CC2520_RXFIRST);
+//		if(rx_length == CC2520_ACK_LENGTH){
+//			radio_tx_acked(TRUE);
+//		}
+//		else{
+			radio_rxing(TRUE);
+//		}
 
 		// Processa o unet_core_isr_handler
 		_isr_handler();
 
-		// ************************
-		// Saida de interrupcao
-		// ************************
-		OS_INT_EXIT();
-		// ************************
-
 	}
 
+	// ************************
+	// Saida de interrupcao
+	// ************************
+	OS_INT_EXIT();
+	// ************************
 }
 
 int _isr(const void *isr_handler) {

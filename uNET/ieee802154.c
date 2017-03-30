@@ -180,16 +180,22 @@ void ieee802154_header_set(packet_t * _packet, uint8_t type, uint8_t ack_req)
 	_packet->packet[MAC_FRAME_CTRL] = fc.u8[0];
 	_packet->packet[MAC_FRAME_CTRL+1] = fc.u8[1];
 	_packet->packet[MAC_SEQ_NUM] = packet_info_get(_packet,PKTINFO_SEQNUM);
-	_packet->packet[MAC_PANID_16] = 0xff;//node_data_get(NODE_PANID16L);
-	_packet->packet[MAC_PANID_16+1] = 0xff;//node_data_get(NODE_PANID16H);
+	_packet->packet[MAC_PANID_16] = node_data_get(NODE_PANID16L);
+	_packet->packet[MAC_PANID_16+1] = node_data_get(NODE_PANID16H);
 	_packet->packet[MAC_DEST_16] = packet_info_get(_packet,PKTINFO_DEST16L);
 	_packet->packet[MAC_DEST_16+1] = packet_info_get(_packet,PKTINFO_DEST16H);
 	_packet->packet[MAC_SRC_16] =  node_data_get(NODE_ADDR16L);
 	_packet->packet[MAC_SRC_16+1] = node_data_get(NODE_ADDR16H);
 	_packet->packet[MAC_HEADER_SIZE] = UNET_MAC_HEADER_SIZE;
 	_packet->packet[PHY_PKT_SIZE] = packet_info_get(_packet,PKTINFO_SIZE);
-}
 
+//	PRINTF("ieee: d:%02X%02X s:%02X%02X\n",
+//			 packet_info_get(_packet,PKTINFO_DEST16L),
+//			 packet_info_get(_packet,PKTINFO_DEST16H),
+//             node_data_get(NODE_ADDR16L),
+//             node_data_get(NODE_ADDR16H)
+//			);
+}
 
 /*--------------------------------------------------------------------------------------------*/
 const uint16_t _ccitt_crc16_table[256] = {

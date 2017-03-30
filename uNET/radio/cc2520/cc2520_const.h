@@ -190,7 +190,7 @@ enum cc2520_address {
 #define CC2520_INS_SACKPEND            0x4A
 #define CC2520_INS_SNACK               0x4B
 #define CC2520_INS_SRXMASKBITSET       0x4C
-#define CC2520_INS_SRXMASKBITCLR       0x4D
+#define CC2520_INS_SRXMASKBITCLR       0x4D  /// Cooja not implemented!
 #define CC2520_INS_RXMASKAND           0x4E
 #define CC2520_INS_RXMASKOR            0x4F
 #define CC2520_INS_MEMCP               0x50

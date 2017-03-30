@@ -566,8 +566,6 @@ void OS_TICK_HANDLER(void)
 ////////////////////////////////////////////////////////////
 uint8_t BRTOSStart(void)
 {
-	uint8_t status;
-
  #if (TASK_WITH_PARAMETERS == 1)
   assert(InstallTask(&Idle, "Idle Task", IDLE_STACK_SIZE, 0, (void*)NULL, NULL) == OK);
  #else

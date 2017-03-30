@@ -98,7 +98,7 @@ void unet_header_print(packet_t *p)
 	PRINTF("Received packet of type %s\r\n", packet_type_tostring[packet_type_toindex(p->packet[UNET_PKT_TYPE])]);
 	PRINTF("payload length: %d\r\n", p->packet[UNET_PAYLOAD_LEN]);
 	PRINTF("payload: ");
-	packet_print(p->packet, p->packet[UNET_PAYLOAD_LEN]);
+	packet_print(&p->packet[UNET_HEADER_END], p->packet[UNET_PAYLOAD_LEN]);
 	PRINTF("hop limit:   %d\r\n", p->packet[UNET_HOP_LIMIT]);
 	PRINTF("next header: %s\r\n", next_header_tostring[next_header_toindex(p->packet[UNET_NEXT_HEADER])]);
 	PRINTF("from:  "); print_addr64(&p->packet[UNET_SRC_64]);
@@ -527,7 +527,7 @@ uint8_t unet_packet_input(packet_t *p)
 				unet_router_up_table_entry_add(src_addr16, dest_addr64);
 
 				PRINTF_ROUTER(2,"Route added or updated\r\n");
-				PRINTF_ROUTER(1,"RX DOWN in buffer, from %u SN %d \r\n", src_addr16, r->info[PKTINFO_SEQNUM]);
+				PRINTF_ROUTER(1,"RX DOWN in buffer, from %u SN %d \r\n", src_addr16, r->info[PKTINFO_SEQNUM]); // TODO chage %u to %04X
 
 				/* todo: set node activity  flag */
 				link_set_neighbor_activity(r);
