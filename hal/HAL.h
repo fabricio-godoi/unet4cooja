@@ -83,9 +83,13 @@ extern INT32U SPvalue;
 
 
 /// Defines the disable interrupts command of the chosen microcontroller
-#define UserEnterCritical() asm("	NOP	");asm("	DINT	")
+#define UserEnterCritical() __dint()
+// old: asm("	NOP	"); asm("	DINT	")
+// Changed because of errors, check errata CPU39 for more information
+// This way, nop instructions are put in right positions
+
 /// Defines the enable interrupts command of the choosen microcontroller
-#define UserExitCritical()  asm("	NOP	");asm("	EINT	")
+#define UserExitCritical()  __eint()
 
 #if (NESTING_INT == 0)
 /// Defines the disable interrupts command of the chosen microcontroller
@@ -259,6 +263,33 @@ void SwitchContext(void);
  * Then the information is put back in the stack, and put the SP at the TOS.
  * Lastly, save the context from R14 to R11.
  *
+ *           SP+0        SP+2    SP+4    SP+6
+ * [  ... 0x00000000    ......  PC.LSW  PC.MSW  ...  ]    Original frame
+ *           SP+0        SP+2    SP+4    SP+6
+ * [  ... 0x00000000    PC.MSW  PC.LSW  PC.MSW  ...  ]    Move PC.MSW
+ *           SP+0        SP+2    SP+4    SP+6
+ * [  ... 0x00000000    PC.MSW  PC.LSW  PC.LSW  ...  ]    Move PC.LSW
+ *           SP+0        SP+2    SP+4    SP+6
+ * [  ... 0x00000000    PC.MSW  PC.MSW  PC.LSW  ...  ]    Move PC.MSW
+ *           SP-4        SP-2    SP+0    SP+2
+ * [  ... 0x00000000    PC.MSW  PC.MSW  PC.LSW  ...  ]    Increment SP+=4
+ *           SP-2        SP+0    SP+2    SP+4
+ * [  ... 0x00000000      R15   PC.MSW  PC.LSW  ...  ]    Save R15
+ *           SP-6        SP-4    SP-2    SP+0
+ * [  ... 0x00000000      R15   PC.MSW  PC.LSW  ...  ]    Move SP
+ *
+ * R15 [ 0b0000      PC.LSW.LSB  PC.LSW.MSB  ]    Push PC.LSW from stack to R15
+ * R15 [ 0b0000      PC.LSW.MSB  PC.LSW.LSB  ]    Swap PC.LSW bytes
+ * R15 [ PC.LSW.MSB  PC.LSW.LSB  0b0000      ]    Shift 4 bits to left
+ * R15 [ PC.LSW.MSB  PC.LSW.LSB  SR          ]    Add SR
+ *
+ *          SP-6       SP-4    SP-2        SP+0
+ * [  ... 00000000      R15   PC.MSW  PC.LSW.LSB|SR  ...  ]    Pop R15 to stack
+ *          SP-2       SP+0    SP+2        SP+4
+ * [  ... 00000000      R15   PC.MSW  PC.LSW.LSB|SR  ...  ]    Set SP to top of stack
+ *        SP0  SP2  SP4  SP6  SP8   SP10        SP12
+ * [  ... R11  R12  R13  R14  R15  PC.MSW  PC.LSW.LSB|SR  ...  ]    Save R14-R11
+ *
  *  Obs.: asm(	SUBX.A  #(n),Rx ) isn't properly working on Cooja!
  */
 #define OS_SAVE_ISR()            asm("	MOV.W	6(SP),2(SP)	\n\t"	\
@@ -278,6 +309,9 @@ void SwitchContext(void);
                                      "	PUSHX.A	R12 \n\t"			\
                                      "	PUSHX.A	R11 \n\t")
 
+/**
+ * Since DelayTask disable interrupts, it's needed to enable interrupts at end
+ */
 #define OS_RESTORE_ISR() 		 asm("	POPX.A	R11 \n\t"	\
                                      "	POPX.A	R12 \n\t"	\
                                      "	POPX.A	R13 \n\t"	\

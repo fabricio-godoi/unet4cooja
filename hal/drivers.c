@@ -37,7 +37,6 @@ void drivers_init(void *params){
 #ifndef putchar
 int putchar(int c)
 {
-//	leds_toggle(LEDS_YELLOW);
 	while (!(UART_UCxIFG&UART_UCTXRXIFG));             // TX buffer ready?
 	UART_TXBUF = c;  	/* Armazena o caracter a ser transmitido no registrador de transmiss�o */
 	return 1;

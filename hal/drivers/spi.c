@@ -83,13 +83,11 @@ void spi_init(void) {
 }
 
 
-/// TODO: implement this
 void spi_write(char *a, short l){
 	short i;
 	for(i=0;i<l;i++) SPI_WRITE(a[i]);
 }
 
-/// TODO: implement this
 void spi_read(char *a, short l){
 	short i;
 	for(i=0;i<l;i++) SPI_READ(a[i]);

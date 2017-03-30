@@ -172,7 +172,7 @@ interrupt(TIMER_INT) TickTimer(void)
 
 			last_tar = read_tar();
 		}
-	}
+	} else TIMER_IV = 0;
 
 	// ************************
 	// Interrupt Exit
@@ -186,9 +186,6 @@ interrupt(TIMER_INT) TickTimer(void)
 ////////////////////////////////////////////////////////////
 
 
-
-
-
 ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////
 /////   Software Interrupt to provide Switch Context   /////
@@ -199,13 +196,13 @@ interrupt(TIMER_INT) TickTimer(void)
 * \brief Software interrupt handler routine (Internal kernel function).
 *  Used to switch the tasks context.
 ****************************************************************/
-//volatile unsigned long i;
+volatile unsigned long i;
 //#define PRINT_WAIT(...) PRINTF(__VA_ARGS__); for(i=0;i<200000;i++)
 void SwitchContext(void)
 {
   // as MSP430 does not have sw interrupt, we save 7 regs to make it appear like one.
   OS_SAVE_ISR();
-  
+
   // ************************
   // Entrada de interrupcao
   // ************************

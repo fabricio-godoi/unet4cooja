@@ -88,6 +88,7 @@ interrupt(UART_USCI) USCIxRX_ISR(void)
 			OSQueueClean(Serial);
 		}
 	}
+	else UART_UCAxIV = 0; // clear all interruptions call
 
 	// ************************
 	// Interrupt Exit
