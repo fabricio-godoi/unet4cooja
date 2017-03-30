@@ -42,7 +42,7 @@ void System_Time(void)
 	}
 }
 
-
+#if 0
 #include "OSInfo.h"
 char big_buffer[20];
 
@@ -111,114 +111,103 @@ void Task_Serial(void)
 		}
 	}
 }
-
+#endif
 
 
 
 #if (UNET_DEVICE_TYPE == PAN_COORDINATOR)
+
 #if (TASK_WITH_PARAMETERS == 1)
 void pisca_led_net(void *param){
 	(void)param;
 #else
 void pisca_led_net(void){
 #endif
-	unet_transport_t client;
-//	addr64_t dest_addr64 = {.u8 = {0x47,0x42,0x00,0x00,0x00,0x00,0x12,0x34}};
-	addr64_t dest_addr64 = {.u8 = {0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x01}}; // set client as destination
-//	addr64_t dest_addr64 = {.u8 = {0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x02}}; // set client as destination
-	uint8_t packet[8];
-	uint8_t message[32];
-	APP_PACKET *app_payload;
+	unet_transport_t clients[2];
 
-	app_payload = (APP_PACKET*)packet;
+	addr64_t clients_addr64[] = { {.u8 = {PANID_INIT_VALUE,0x00,0x00,0x00,0x00,0x00,(COORDINATOR_ID+1)}},
+						  	  	  {.u8 = {PANID_INIT_VALUE,0x00,0x00,0x00,0x00,0x00,(COORDINATOR_ID+2)}} };
+	uint8_t message[32];
 
 	DelayTask(5000);
 
-	// !!!! D�vida,
-	client.src_port = 222;
-	client.dst_port = 221;
-	client.dest_address = &dest_addr64;
-	unet_connect(&client);
+	clients[0].src_port = 222;
+	clients[0].dst_port = 221;
+	clients[0].dest_address = &clients_addr64[0];
+	clients[1].src_port = 222;
+	clients[1].dst_port = 221;
+	clients[1].dest_address = &clients_addr64[1];
+	unet_connect(&clients[0]);
+	unet_connect(&clients[1]);
 
-	app_payload->APP_Profile = GENERAL_PROFILE;
-	app_payload->APP_Command = GENERAL_ONOFF;
-
-	unsigned int mac, pan;
-	unsigned long mac64;
-	unsigned char value;
 	for(;;)
 	{
-
-//		OSEnterCritical();
-//		// PAN
-//		UNET_RADIO.get(PANID16H,&value);
-//		pan = value<<8;
-//		UNET_RADIO.get(PANID16L,&value);
-//		pan |= value;
-//		PRINTF("tasks: pan %04X\n",pan);
-//		// ADDR64
-//		PRINTF("tasks: addr64 ");
-//		UNET_RADIO.get(MACADDR64_7,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_6,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_5,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_4,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_3,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_2,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_1,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_0,&value);
-//		PRINTF("%02X\n",value);
-//		// MAC
-//		UNET_RADIO.get(MACADDR16H,&value);
-//		mac = value<<8;
-//		UNET_RADIO.get(MACADDR16L,&value);
-//		mac |= value;
-//		PRINTF("tasks: mac %04X\n",mac);
-//
-//		OSExitCritical();
-
-		/// Turn LED on
-
 		// Envia mensagem para o client
-//		app_payload->APP_Command_Attribute = TRUE;
-//		unet_send(&client, packet, 3,30);
-//		PRINTF("tasks: PAN sending packet\n");
-		if (unet_recv(&client,message,0) >= 0)
-		{
-			PRINTF("tasks: PAN rcv packet\n");
-			PRINTF_APP(1,"tasks: Packet received from (port/address):0xff  %d/",client.sender_port); PRINTF_APP_ADDR64(1,&(client.sender_address));
-			PRINTF_APP(1,"tasks: Packet Content: %s\n\r",message);
-			DelayTask(5000);
-		}else{
-			DelayTask(10000);
+		if (unet_recv(&clients[0],message,0) >= 0){
+//			PRINTF("tasks: PAN rcv packet\n");
+//			PRINTF_APP(1,"tasks: Packet received from (port/address):0xff  %d/",client.sender_port); PRINTF_APP_ADDR64(1,&(client.sender_address));
+			PRINTF_APP(1,"tasks: %s\n\r",message);
+		}
+		if (unet_recv(&clients[1],message,0) >= 0){
+			PRINTF_APP(1,"tasks: %s\n\r",message);
 		}
 
-		/// Turn LED off
+		DelayTask(1000);
 
-
-//		app_payload->APP_Command_Attribute = FALSE;
-//		unet_send(&client, packet, 3,30);
-//		PRINTF("tasks: PAN sending packet\n");
-//		if (unet_recv(&client,message,1000) >= 0)
-//		{
-//			PRINTF("tasks: PAN rcv packet\n");
-//			PRINTF_APP(1,"Packet received from (port/address):  %d/",client.sender_port); PRINTF_APP_ADDR64(1,&(client.sender_address));
-//			PRINTF_APP(1,"Packet Content: %s\n\r",message);
-//			DelayTask(5000);
-//		}else{
-//			DelayTask(10000);
-//		}
 	}
 }
 #endif
 
 
+#if (UNET_DEVICE_TYPE == ROUTER)
+
+volatile addr64_t tasks_dest_addr64 = {.u8 = {PANID_INIT_VALUE,0x00,0x00,0x00,0x00,0x00,COORDINATOR_ID}};
+#if (ROUTER_TYPE == ROUTER1)
+#if (TASK_WITH_PARAMETERS == 1)
+void pisca_led_net(void *param){
+	(void)param;
+#else
+void pisca_led_net(void){
+#endif
+
+	unet_transport_t server;
+
+	server.src_port = 221;
+	server.dst_port = 222;
+	server.dest_address = &tasks_dest_addr64;
+	unet_listen(&server);
+
+	unsigned char string[] = {'H','e','l','l','o',' ','f','r','o','m',' ',node_id+48};
+
+	for(;;)
+	{
+
+		// Envia mensagem para o coordenador
+		unet_send(&server,string,12,0);
+
+		DelayTask(1000);
+	}
+}
+#endif
+
+
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+/////////////////////********************************************************************
+
+
+#if 0
 #if (TASK_WITH_PARAMETERS == 1)
 void UNET_App_1_Decode(void *param){
    (void)param;
@@ -280,92 +269,9 @@ void UNET_App_1_Decode(void){
        }
    }
 }
-
-#if (UNET_DEVICE_TYPE == ROUTER)
-#if (ROUTER_TYPE == ROUTER1)
-#if (TASK_WITH_PARAMETERS == 1)
-void pisca_led_net(void *param){
-	(void)param;
-#else
-void pisca_led_net(void){
 #endif
-	 uint8_t packet[8];
-////	addr64_t dest_addr64 = {.u8 = {0x47,0x42,0x00,0x00,0x00,0x00,0x12,0x34}};
-		addr64_t dest_addr64 = {.u8 = {0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00}};
-//		addr64_t dest_addr64 = {.u8 = {0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x01}};
-
-	unet_transport_t server;
-
-	server.src_port = 221;
-	server.dst_port = 222;
-	server.dest_address = &dest_addr64;
-//	unet_listen(&server);
-//	char x;
-//	if(node_id == 2) x = 3;
-//	else if(node_id == 3)	x=2;
-//	else x=1;
-//	addr64_t dest_addr64 = {.u8 = {0xff,0xff,0x00,0x00,0x00,0x00,0x00,x}};
-
-	unsigned char string[] = "teste\0";
-	unsigned int mac, pan;
-	unsigned long mac64;
-	unsigned char value;
-	for(;;)
-	{
-
-//		OSEnterCritical();
-//		// PAN
-//		UNET_RADIO.get(PANID16H,&value);
-//		pan = value<<8;
-//		UNET_RADIO.get(PANID16L,&value);
-//		pan |= value;
-//		PRINTF("tasks: pan %04X\n",pan);
-//		// ADDR64
-//		PRINTF("tasks: addr64 ");
-//		UNET_RADIO.get(MACADDR64_7,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_6,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_5,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_4,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_3,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_2,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_1,&value);
-//		PRINTF("%02X ",value);
-//		UNET_RADIO.get(MACADDR64_0,&value);
-//		PRINTF("%02X\n",value);
-//		// MAC
-//		UNET_RADIO.get(MACADDR16H,&value);
-//		mac = value<<8;
-//		UNET_RADIO.get(MACADDR16L,&value);
-//		mac |= value;
-//		PRINTF("tasks: mac %04X\n",mac);
-//
-//		OSExitCritical();
 
 
-		// Envia mensagem para o coordenador
-		unet_send(&server,string,6,0);
-
-//	   (void)unet_recv(&server,packet,0);
-//	   PRINTF("tasks: recv\n");
-//	   PRINTF_APP(1,"Packet received from (port/address):  %d/",server.sender_port);
-//	   PRINTF_APP_ADDR64(1,&(server.sender_address));
-
-
-//		PRINTF("tasks: sending ON\n");
-//		NetGeneralONOFF(TRUE, &dest_addr64);
-//		DelayTask(1000);
-////		PRINTF("tasks: sending OFF\n");
-//		NetGeneralONOFF(FALSE, &dest_addr64);
-		DelayTask(1000);
-	}
-}
-#endif
 
 #if (ROUTER_TYPE == ROUTER2)
 void make_path(void *param)
@@ -466,6 +372,8 @@ void UNET_App_1_Decode(void){
  *  @{
  * Tarefa para processamento de comandos recebidos por terminal.
  */
+
+#if 0
 #include "terminal.h"
 
 static void terminal_init(void)
@@ -478,6 +386,7 @@ static void terminal_init(void)
 	#endif
 	#endif
 }
+
 
 #if (UNET_DEVICE_TYPE == PAN_COORDINATOR)
 #if (TASK_WITH_PARAMETERS == 1)
@@ -603,4 +512,5 @@ void Terminal_Task(void){
 		}
 	}
 }
+#endif
 #endif

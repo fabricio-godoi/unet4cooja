@@ -42,10 +42,6 @@
 #include "node_id.h"
 #include "cooja.h"
 
-/** init CPU function */
-/** fun��o de in�cio da CPU */
-void mcu_init(void);
-
 /** declara um ponteiro do evento sem�foro */
 /** semaphore event pointer */
 BRTOS_Sem *SEMTESTE;
@@ -61,33 +57,33 @@ BRTOS_Queue *Serial;
 #define asmv(arg) __asm__ __volatile__(arg)
 
 /*---------------------------------------------------------------------------*/
-void *w_memcpy(void *out, const void *in, size_t n) {
-	uint8_t *src, *dest;
-	src = (uint8_t *) in;
-	dest = (uint8_t *) out;
-	while (n-- > 0) {
-		*dest++ = *src++;
-	}
-	return out;
-}
-
-void *w_memset(void *out, int value, size_t n) {
-	uint8_t *dest;
-	dest = (uint8_t *) out;
-	while (n-- > 0) {
-		*dest++ = value & 0xff;
-	}
-	return out;
-}
+//void *w_memcpy(void *out, const void *in, size_t n) {
+//	uint8_t *src, *dest;
+//	src = (uint8_t *) in;
+//	dest = (uint8_t *) out;
+//	while (n-- > 0) {
+//		*dest++ = *src++;
+//	}
+//	return out;
+//}
+//
+//void *w_memset(void *out, int value, size_t n) {
+//	uint8_t *dest;
+//	dest = (uint8_t *) out;
+//	while (n-- > 0) {
+//		*dest++ = value & 0xff;
+//	}
+//	return out;
+//}
 
 /* TODO create a specific module to it (merge with assert?) */
 
-extern const char *__msg_table[] = { "OK", "NO_MEMORY", "STACK_SIZE_TOO_SMALL",
-		"END_OF_AVAILABLE_PRIORITIES", "BUSY_PRIORITY", "INVALID_TIME",
-		"TIMEOUT", "CANNOT_ASSIGN_IDLE_TASK_PRIO", "NOT_VALID_TASK",
-		"NO_TASK_DELAY", "END_OF_AVAILABLE_TCB", "EXIT_BY_NO_ENTRY_AVAILABLE",
-		"TASK_WAITING_EVENT", "CANNOT_UNINSTALL_IDLE_TASK",
-		"EXIT_BY_NO_RESOURCE_AVAILABLE" };
+//extern const char *__msg_table[] = { "OK", "NO_MEMORY", "STACK_SIZE_TOO_SMALL",
+//		"END_OF_AVAILABLE_PRIORITIES", "BUSY_PRIORITY", "INVALID_TIME",
+//		"TIMEOUT", "CANNOT_ASSIGN_IDLE_TASK_PRIO", "NOT_VALID_TASK",
+//		"NO_TASK_DELAY", "END_OF_AVAILABLE_TCB", "EXIT_BY_NO_ENTRY_AVAILABLE",
+//		"TASK_WAITING_EVENT", "CANNOT_UNINSTALL_IDLE_TASK",
+//		"EXIT_BY_NO_RESOURCE_AVAILABLE" };
 
 void __error_message(unsigned char _error_code) {
 	switch (_error_code) {
@@ -223,8 +219,9 @@ int main(void) {
 	//// Common tasks between server and client
 	assert(InstallTask(&System_Time, "System Time", System_Time_StackSize, SystemTaskPriority, &TH_SYSTEM) == OK);
 //	assert(InstallTask(&Task_Serial,"Serial Handler",256,2,NULL) == OK);
+#if 0
 	assert(InstallTask(&Terminal_Task, "Terminal Task", Terminal_StackSize,	Terminal_Priority, &TH_TERMINAL) == OK); //APP3_Priority
-
+#endif
 	//// App tasks
 	assert(InstallTask(&pisca_led_net, "Blink LED Example", UNET_App_StackSize,	APP2_Priority, &TH_NET_APP2) == OK);
 
@@ -243,6 +240,38 @@ int main(void) {
 	assert(InstallTask(&task_run_tests,"Tests",UNET_App_StackSize,2, NULL) == OK);
 #endif
 
+
+//	// Simple cooja test
+//#include "cc2520.h"
+//#include "cc2520_config.h"
+//#include "cc2520_arch.h"
+//#include "cc2520_const.h"
+//    uint8_t i;
+//    volatile uint8_t *buffer = {'0','1'};
+//    char teste = '\0';
+//    char teste2[2];
+//    teste2[0]='0';
+//    teste2[1]='1';
+//    char teste3[] = {'0','1'};
+//    char *teste4;
+//    teste4=&teste;
+//
+//
+//    while(1) { while ((UCB0IFG & UCTXIFG) == 0); UCB0TXBUF = *teste4; }
+//
+//    CC2520_SPI_ENABLE();
+//    SPI_WRITE_FAST(CC2520_INS_MEMWR | (((CC2520RAM_IEEEADDR)>>8) & 0xFF));
+//    SPI_WRITE_FAST(((CC2520RAM_IEEEADDR) & 0xFF));
+//    for(i = 0; i < (1); i++) {
+//      SPI_WRITE_FAST(buffer[0] & 0xFF);
+//    }
+//
+//	while(1);
+//	UNET_RADIO.set(PANID16H, 0x25);
+
+//    SPI_WAITFORTx_ENDED();
+//    CC2520_SPI_DISABLE();
+
 	/** Inicia OS **/
 	BRTOSStart();
 
@@ -251,4 +280,24 @@ int main(void) {
 	return 1;
 
 }
+
+
+
+
+
+
+//#define _EXTREME_DEBUG_
+//#ifdef _EXTREME_DEBUG_
+//volatile int func_addr;
+//volatile char line;
+//void __cyg_profile_func_enter (void *this_fn, void *call_site){
+////	PRINTF("db %s:%d\n",FILE,LINE);
+//	func_addr = this_fn;
+//
+//}
+//
+//void __cyg_profile_func_exit  (void *this_fn, void *call_site){
+//}
+//
+//#endif
 
