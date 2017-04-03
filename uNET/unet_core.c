@@ -58,7 +58,7 @@ Copyright (c) <2009-2013> <Universidade Federal de Santa Maria>
 volatile long i;
 #define PRINT_WAIT(...) PRINTF(__VA_ARGS__); for(i=0;i<200000;i++)
 
-uint16_t unet_verbose = UNET_VERBOSE_LEVEL_MAX; /// TODO change to 0 to disable debug
+uint16_t unet_verbose = 0;//UNET_VERBOSE_LEVEL_MAX; /// TODO change to 0 to disable debug
 
 /* payload vector - max. bytes = MAX_APP_PAYLOAD_SIZE */
 volatile uint8_t     NWKPayload[MAX_APP_PAYLOAD_SIZE];
@@ -140,8 +140,6 @@ void UNET_test(void *param);
 #define UNET_Router_Up_Ack_Task_Priority    7
 #define UNET_Router_Up_Task_Priority        5
 
-static int radio_interrupts = 0;
-
 /*----------------------------------------------------------------------------*/
 static void UNET_radio_isr_handler(void)
 {
@@ -149,32 +147,21 @@ static void UNET_radio_isr_handler(void)
 	uint8_t state;
 	UNET_RADIO.get(RADIO_STATE,&state);
 
-	++radio_interrupts;
-
-	/// Denardin: "não precisa" 16/03/2017
-//	if(radio_interrupts == 2)
-//	{
-//		while(1); /// TODO this will cause the program to shutdown (trap),
-//				  /// shouldn't it just wait to radio_interrupts goes down?
-//				  /// This will cause interrupt nesting occurs.
-//	}
-	while(radio_interrupts == 2); // make sure that doesn't occour nested interruptions
-
+	// NOTE this function is called inside ISR, so it's preferable not use OS_Critical instructions
+	//      since the ISR already disable interruptions
 	if(is_radio_rxing(state))
 	{
-		radio_rx_disabled(TRUE);
-		radio_rxing(FALSE); /* clear RX interrupt flag */
+		RADIO_STATE_SET(RX_DISABLED); // radio_rx_disabled(TRUE);
+		RADIO_STATE_RESET(RX_OK);     // radio_rxing(FALSE); /* clear RX interrupt flag */
 		OSSemPost(Radio_RX_Event);
 	}
-
 	if(is_radio_txing(state))
 	{
-		radio_txing(FALSE); /* clear TX interrupt flag */
+		RADIO_STATE_RESET(TX_OK);    // radio_txing(FALSE); /* clear TX interrupt flag */
 		OSSemPost(Radio_TX_Event);
 	}
-
-	--radio_interrupts;
 }
+
 /*----------------------------------------------------------------------------*/
 void RadioReset(void){
 	const addr16_t node_addr16 = {.u8 = {MAC16_INIT_VALUE}};
@@ -454,36 +441,36 @@ void UNET_Radio_Task(void)
 	node_pan_id64_set((uint8_t*)pan_id_64);
 	node_addr64_set((uint8_t*)&node_addr64);
 
-#if BRTOS_ENDIAN == LITTLE_ENDIAN
-	// Little endian                        0   1
-	// LSB comes first in the memory Ex.: [ L , H ]
+#if BRTOS_ENDIAN == BIG_ENDIAN
+	// Big endian                           0   1
+	// MSB comes first in the memory Ex.: [ H , L ]
 	node_data_set(NODE_ADDR16L,node_addr16.u8[0]);
 	node_data_set(NODE_ADDR16H,node_addr16.u8[1]);
 	node_data_set(NODE_PANID16L,pan_id_16[0]);
 	node_data_set(NODE_PANID16H,pan_id_16[1]);
-	UNET_RADIO.set(MACADDR64_0, node_addr64.u8[0]); // <-- LSB
-	UNET_RADIO.set(MACADDR64_1, node_addr64.u8[1]);
-	UNET_RADIO.set(MACADDR64_2, node_addr64.u8[2]);
-	UNET_RADIO.set(MACADDR64_3, node_addr64.u8[3]);
-	UNET_RADIO.set(MACADDR64_4, node_addr64.u8[4]);
-	UNET_RADIO.set(MACADDR64_5, node_addr64.u8[5]);
-	UNET_RADIO.set(MACADDR64_6, node_addr64.u8[6]);
-	UNET_RADIO.set(MACADDR64_7, node_addr64.u8[7]); // <-- MSB
+//	UNET_RADIO.set(MACADDR64_0, node_addr64.u8[0]); // <-- MSB
+//	UNET_RADIO.set(MACADDR64_1, node_addr64.u8[1]);
+//	UNET_RADIO.set(MACADDR64_2, node_addr64.u8[2]);
+//	UNET_RADIO.set(MACADDR64_3, node_addr64.u8[3]);
+//	UNET_RADIO.set(MACADDR64_4, node_addr64.u8[4]);
+//	UNET_RADIO.set(MACADDR64_5, node_addr64.u8[5]);
+//	UNET_RADIO.set(MACADDR64_6, node_addr64.u8[6]);
+//	UNET_RADIO.set(MACADDR64_7, node_addr64.u8[7]); // <-- LSB
 #else
-	// Big endian                           0   1
-	// MSB comes first in the memory Ex.: [ H , L ]
+	// Little endian                        0   1
+	// LSB comes first in the memory Ex.: [ L , H ]
 	node_data_set(NODE_ADDR16H,node_addr16.u8[0]);
 	node_data_set(NODE_ADDR16L,node_addr16.u8[1]);
 	node_data_set(NODE_PANID16H,pan_id_16[0]);
 	node_data_set(NODE_PANID16L,pan_id_16[1]);
-	UNET_RADIO.set(MACADDR64_7, node_addr64.u8[0]); // <-- MSB
-	UNET_RADIO.set(MACADDR64_6, node_addr64.u8[1]);
-	UNET_RADIO.set(MACADDR64_5, node_addr64.u8[2]);
-	UNET_RADIO.set(MACADDR64_4, node_addr64.u8[3]);
-	UNET_RADIO.set(MACADDR64_3, node_addr64.u8[4]);
-	UNET_RADIO.set(MACADDR64_2, node_addr64.u8[5]);
-	UNET_RADIO.set(MACADDR64_1, node_addr64.u8[6]);
-	UNET_RADIO.set(MACADDR64_0, node_addr64.u8[7]); // <-- LSB
+//	UNET_RADIO.set(MACADDR64_7, node_addr64.u8[0]); // <-- LSB
+//	UNET_RADIO.set(MACADDR64_6, node_addr64.u8[1]);
+//	UNET_RADIO.set(MACADDR64_5, node_addr64.u8[2]);
+//	UNET_RADIO.set(MACADDR64_4, node_addr64.u8[3]);
+//	UNET_RADIO.set(MACADDR64_3, node_addr64.u8[4]);
+//	UNET_RADIO.set(MACADDR64_2, node_addr64.u8[5]);
+//	UNET_RADIO.set(MACADDR64_1, node_addr64.u8[6]);
+//	UNET_RADIO.set(MACADDR64_0, node_addr64.u8[7]); // <-- MSB
 #endif
 
 	node_data_set(NODE_DISTANCE, NODE_DISTANCE_INIT);

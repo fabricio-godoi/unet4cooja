@@ -180,8 +180,17 @@ static void cc2520_rx_disable(void) {
 /*---------------------------------------------------------------------------*/
 static void cc2520_rx_enable(void) {
 	/* Enable packet reception */
-	strobe(CC2520_INS_SRXON); // Enable RX, set RXENABLE[15] register
+//	strobe(CC2520_INS_SRXON); // Enable RX, set RXENABLE[15] register
 							  // This strobe abort ongoing transmissions
+//	The SRXON strobe:
+//	o Sets RXENABLE[15]
+//	o Aborts ongoing transmission/reception by forcing a transition to RX calibration.
+//	• The STXON strobe when FRMCTRL1.SET_RXENMASK_ON_TX is enabled:
+//	o Sets RXENABLE[14]
+//	o The receiver is enabled after transmission completes.
+//	• Setting RXENABLE != 0x0000:
+//	o Does not abort ongoing transmission/reception.
+	setreg(CC2520_RXENABLE0, 0x01); //  Does not abort ongoing TX/RX
 }
 /*---------------------------------------------------------------------------*/
 /**
@@ -194,16 +203,6 @@ int cc2520_set(radio_opt_t opt, uint8_t value) {
 	cc2520_radio_params.param[opt] = value; // refresh local mem information
 	switch (opt) {
 	case RADIO_STATE:
-#if 0
-		if(is_radio_rx_disabled(value))
-		{
-			set_short_add_mem(CC2520_BBREG1,0x04); /* disable radio rx */
-		} else
-		{
-			set_short_add_mem(CC2520_RXFLUSH,0x01); /* flush rx buffer */
-			set_short_add_mem(CC2520_BBREG1,0x00); /* enable radio rx */
-		}
-#endif
 		break;
 	case CHANNEL:
 		//value = ((value - 11)%16)+11;
@@ -471,7 +470,8 @@ int cc2520_init(const void *isr_handler) {
 	/* Set FIFOP threshold to maximum .*/
 	setreg(CC2520_FIFOPCTRL, FIFOP_THR(0x7F));
 
-	cc2520_set_pan_addr(0xffff,0x0000,NULL);
+
+	cc2520_set_pan_addr((unsigned)(PANID_INIT_VALUE),(unsigned)(MAC16_INIT_VALUE),NULL);
 	cc2520_set_channel(CHANNEL_INIT_VALUE);
 
 
@@ -522,15 +522,15 @@ int cc2520_transmit(void) {
 #define LOOP_20_SYMBOLS CC2520_CONF_SYMBOL_LOOP_COUNT
 #endif
 
+	// Start transmitting
 #if WITH_SEND_CCA
+	/// TODO get warning "Turning off radio while transmitting, ending packet prematurely" from Cooja
 	strobe(CC2520_INS_SRXON); // TX is aborted by SRXON, STXON, SROFF
 	BUSYWAIT_UNTIL(status() & BV(CC2520_RSSI_VALID), RTIMER_SECOND / 10);
 	strobe(CC2520_INS_STXONCCA); // Start transmission
 #else /* WITH_SEND_CCA */
 	strobe(CC2520_INS_STXON);
 #endif /* WITH_SEND_CCA */
-
-	// Start transmitting without ACK
 	radio_txing(TRUE);
 	radio_tx_acked(FALSE);
 
@@ -577,7 +577,7 @@ int cc2520_transmit(void) {
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
 				UNET_RADIO.set(TX_RETRIES, 0);
 				radio_tx_acked(TRUE);
-//				CC2520_PRINTF("cc2520: TX OK\n");
+				CC2520_PRINTF("cc2520: TX OK\n");
 				_isr_handler();
 //			}
 			return 0; //RADIO_TX_OK;
@@ -587,13 +587,8 @@ int cc2520_transmit(void) {
 	/* If we are using WITH_SEND_CCA, we get here if the packet wasn't
 	 transmitted because of other channel activity. */
 //  RIMESTATS_ADD(contentiondrop);
-
-
-
 	UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 	UNET_RADIO.set(TX_RETRIES, 0);
-//	radio_txing(FALSE);
-//	radio_tx_acked(FALSE); // done in write
 	CC2520_PRINTF("cc2520: do_send() transmission never start\n");
 	CC2520_PRINTF("cc2520: TX Collision\n");
 	_isr_handler(); // call the unet handler, since the tx isr will not occour
@@ -604,17 +599,16 @@ int cc2520_transmit(void) {
 /*---------------------------------------------------------------------------*/
 int cc2520_write(const void *buf, uint16_t len) {
 	uint8_t *frame_control = (uint8_t *) buf;
-
 	CC2520_PRINTF("cc2520: write: ");
 	CC2520_PRINTF_PACKET(frame_control, len);
 	/// Check with the IEEE frame control if ACK is needed
-	/// TODO maybe should be in unet_core
+	/// NOTE maybe should be in unet_core
 	if (frame_control[0] == 0x41) {
-		CC2520_PRINTF("cc2520: ACK NOT needed!\n"); // TODO CC2520 changeit
+		CC2520_PRINTF("cc2520: ACK NOT needed!\n");
 		radio_tx_ack(FALSE);
 	}
 	if (frame_control[0] == 0x61) {
-		CC2520_PRINTF("cc2520: ACK needed!\n"); // TODO CC2520 changeit
+		CC2520_PRINTF("cc2520: ACK needed!\n");
 		radio_tx_ack(TRUE);
 	}
 
@@ -641,18 +635,18 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 	}
 
 	CC2520_READ_FIFO_BYTE(len);
+#ifdef CC2520_DEBUG
 	if(len == CC2520_ACK_LENGTH){
 		CC2520_PRINTF("cc2520: ack %d\n",len);
 	}
-
-//	len = pkt_len;
 	CC2520_PRINTF("cc2520: read: %d bytes\n",len);
+#endif
 
 	if (len > FOOTER_LEN && len < buf_len) { // not shorter, neither longer
 
 		CC2520_READ_FIFO_BUF(buf, len - FOOTER_LEN);
 		CC2520_READ_FIFO_BUF(footer, FOOTER_LEN);
-		len = len - FOOTER_LEN; // set len as data size only (needed by return)
+		len = len - FOOTER_LEN;
 
 		/// Print PKT
 		CC2520_PRINTF("cc2520: pkt: ");
@@ -670,9 +664,9 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 		 * appended at the end of each received frame. See Table 15 for
 		 * details.
 		 */
-		cc2520_radio_params.st_radio_param.crc = (footer[1] & FOOTER1_CRC_OK) >> 7; // get the CRC bit, and make it zero or one
-		cc2520_radio_params.st_radio_param.last_rssi = buf[0]; //0
-		cc2520_radio_params.st_radio_param.last_lqi = buf[1] & FOOTER1_CORRELATION; //1
+		cc2520_radio_params.st_radio_param.crc = (footer[1] & FOOTER1_CRC_OK) >> 7; // get the CRC bit
+		cc2520_radio_params.st_radio_param.last_rssi = buf[0];
+		cc2520_radio_params.st_radio_param.last_lqi = buf[1] & FOOTER1_CORRELATION;
 
 	} else {
 		len = 0;
@@ -700,19 +694,15 @@ int cc2520_read(const void *buf, uint16_t *len) {
 }
 
 
-/// INFO FIFOP interrupt, indicates RX activity
+/*---------------------------------------------------------------------------*/
+// \biref FIFOP interrupt, indicates RX activity
+extern INT8U iNesting;
 #define interrupt(x) void __attribute__((interrupt (x)))
 interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
-
 	// ************************
-	// Entrada de interrupcao
+	// Interruption entry
 	// ************************
 	OS_INT_ENTER();
-
-	//// TODO there is an exception table, which contains the events (status)
-	////      of transmission and receptions, which must be used
-	////      the exception can trigger the gpio pins of cc2520
-	////      it's possible to check if exception occur using status registers
 
 	//// Page 53, Status Byte:
 	//// "All instructions sent over the SPI to CC2520 result in a status byte being output on SO
@@ -723,28 +713,26 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 		// Clear interrupt flag
 		CC2520_CLEAR_FIFOP_INT();
 
-//		uint8_t rx_length;
-
 		// Disable radio (BRTOS)
-		cc2520_rx_disable();
+		cc2520_rx_disable(); // avoid overflowing rx buffer
 
 		/// TODO ACK Disabled until project specification is completed
 		// Check if it's a ACK message
-//		rx_length = getreg(CC2520_RXFIRST);
-//		if(rx_length == CC2520_ACK_LENGTH){
-//			radio_tx_acked(TRUE);
-//		}
-//		else{
-			radio_rxing(TRUE);
-//		}
+		if( getreg(CC2520_RXFIFOCNT) > CC2520_ACK_LENGTH ){
+			RADIO_STATE_SET(RX_OK);
+		}
+		else{
+//			RADIO_STATE_SET(TX_ACKED); // ACK packet received, transmission ACKED
+			flushrx();
+			RADIO_STATE_RESET(RX_OK);
+		}
 
 		// Processa o unet_core_isr_handler
 		_isr_handler();
-
-	}
+	} else P1IFG = 0;
 
 	// ************************
-	// Saida de interrupcao
+	// Interruption exit
 	// ************************
 	OS_INT_EXIT();
 	// ************************
