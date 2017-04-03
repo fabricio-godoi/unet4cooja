@@ -263,32 +263,35 @@ void SwitchContext(void);
  * Then the information is put back in the stack, and put the SP at the TOS.
  * Lastly, save the context from R14 to R11.
  *
+ * MSW - Most  Significant Word  LSW - Least Significant Word
+ * MSB - Most  Significant Byte  LSB - Least Significant Byte
+ *
  *           SP+0        SP+2    SP+4    SP+6
- * [  ... 0x00000000    ......  PC.LSW  PC.MSW  ...  ]    Original frame
+ * [  ... 0x00000000    ......  PC.MSW  PC.LSW  ...  ]    Original frame
  *           SP+0        SP+2    SP+4    SP+6
- * [  ... 0x00000000    PC.MSW  PC.LSW  PC.MSW  ...  ]    Move PC.MSW
+ * [  ... 0x00000000    PC.LSW  PC.MSW  PC.LSW  ...  ]    Move PC.LSW
  *           SP+0        SP+2    SP+4    SP+6
- * [  ... 0x00000000    PC.MSW  PC.LSW  PC.LSW  ...  ]    Move PC.LSW
+ * [  ... 0x00000000    PC.LSW  PC.MSW  PC.MSW  ...  ]    Move PC.MSW
  *           SP+0        SP+2    SP+4    SP+6
- * [  ... 0x00000000    PC.MSW  PC.MSW  PC.LSW  ...  ]    Move PC.MSW
+ * [  ... 0x00000000    PC.LSW  PC.LSW  PC.MSW  ...  ]    Move PC.LSW
  *           SP-4        SP-2    SP+0    SP+2
- * [  ... 0x00000000    PC.MSW  PC.MSW  PC.LSW  ...  ]    Increment SP+=4
+ * [  ... 0x00000000    PC.LSW  PC.LSW  PC.MSW  ...  ]    Increment SP+=4
  *           SP-2        SP+0    SP+2    SP+4
- * [  ... 0x00000000      R15   PC.MSW  PC.LSW  ...  ]    Save R15
+ * [  ... 0x00000000      R15   PC.LSW  PC.MSW  ...  ]    Save R15
  *           SP-6        SP-4    SP-2    SP+0
- * [  ... 0x00000000      R15   PC.MSW  PC.LSW  ...  ]    Move SP
+ * [  ... 0x00000000      R15   PC.LSW  PC.MSW  ...  ]    Move SP
  *
- * R15 [ 0b0000      PC.LSW.LSB  PC.LSW.MSB  ]    Push PC.LSW from stack to R15
- * R15 [ 0b0000      PC.LSW.MSB  PC.LSW.LSB  ]    Swap PC.LSW bytes
- * R15 [ PC.LSW.MSB  PC.LSW.LSB  0b0000      ]    Shift 4 bits to left
- * R15 [ PC.LSW.MSB  PC.LSW.LSB  SR          ]    Add SR
+ * R15 [ 0b0000  PC.MSW.MSB  PC.MSW.LSB         ]    Push PC.MSW from stack to R15
+ * R15 [ 0b0000  PC.MSW.LSB  PC.MSW.MSB         ]    Swap PC.MSW bytes
+ * R15 [ 0b0000  PC.N[15:12]|PC.MSW.MSB  0b0000 ]    Shift 4 bits to left from 0 to 15
+ * R15 [ 0b0000  PC.N[15:12]|SR[11:0]           ]    Move SR with PC.N - MSW LSB Less Significant Nibble
  *
- *          SP-6       SP-4    SP-2        SP+0
- * [  ... 00000000      R15   PC.MSW  PC.LSW.LSB|SR  ...  ]    Pop R15 to stack
- *          SP-2       SP+0    SP+2        SP+4
- * [  ... 00000000      R15   PC.MSW  PC.LSW.LSB|SR  ...  ]    Set SP to top of stack
- *        SP0  SP2  SP4  SP6  SP8   SP10        SP12
- * [  ... R11  R12  R13  R14  R15  PC.MSW  PC.LSW.LSB|SR  ...  ]    Save R14-R11
+ *          SP-6       SP-4    SP-2     SP+0
+ * [  ... 00000000      R15   PC.LSW  PC.N|SR  ...  ]    Pop R15 to stack
+ *          SP-2       SP+0    SP+2     SP+4
+ * [  ... 00000000      R15   PC.LSW  PC.N|SR  ...  ]    Set SP to top of stack
+ *        SP0  SP2  SP4  SP6  SP8   SP10     SP12
+ * [  ... R11  R12  R13  R14  R15  PC.LSW  PC.N|SR  ...  ]    Save R14-R11
  *
  *  Obs.: asm(	SUBX.A  #(n),Rx ) isn't properly working on Cooja!
  */
@@ -317,7 +320,6 @@ void SwitchContext(void);
                                      "	POPX.A	R13 \n\t"	\
                                      "	POPX.A	R14 \n\t"	\
                                      "	POPX.A	R15 \n\t");	\
-                                     UserExitCritical();	\
 								 asm("	reti	")
 									 
 /*********************************************************************************************/									 
