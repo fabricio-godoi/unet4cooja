@@ -33,7 +33,7 @@ volatile unsigned char pkt_len;
 /* Configuration */
 #define WITH_SEND_CCA 1
 #define FOOTER_LEN 2
-#define CC2520_ACK_LENGTH 5
+#define CC2520_ACK_LENGTH 6	// [ LEN FRC.L FRC.M SQN FCH.L FCH.M ] ieee802.15.4
 #define FOOTER1_CRC_OK      0x80
 #define FOOTER1_CORRELATION 0x7f
 
@@ -91,7 +91,7 @@ static unsigned int status(void) {
 
 static void flushrx(void) {
   uint8_t dummy;
-
+  (void) dummy;
   CC2520_READ_FIFO_BYTE(dummy);
   CC2520_STROBE(CC2520_INS_SFLUSHRX);
   CC2520_STROBE(CC2520_INS_SFLUSHRX);
@@ -387,7 +387,7 @@ int cc2520_init(const void *isr_handler) {
 	CC2520_SPI_DISABLE(); /* Unselect radio. */
 
 	// Configure interruption event (rising edge)
-	CC2520_DISABLE_FIFOP_INT(); /// TODO this is the default configuration
+	CC2520_DISABLE_FIFOP_INT();
 	CC2520_FIFOP_INT_INIT();
 //	splx(s);
 
@@ -490,8 +490,6 @@ int cc2520_prepare(const void *data, unsigned short len) {
 		return -1;
 	}
 
-	CC2520_INTERRUPT_ENABLE_CLR();
-
 	CC2520_PRINTF("cc2520: sending %d bytes\n", len);
 
 	/* Write packet to TX FIFO. */
@@ -500,8 +498,6 @@ int cc2520_prepare(const void *data, unsigned short len) {
 	CC2520_WRITE_FIFO_BUF(&total_len, 1);
 	CC2520_WRITE_FIFO_BUF(data, len);
 
-//		cc2520_set_txfifo(data, len); // brtos backup
-	CC2520_INTERRUPT_ENABLE_SET();
 	return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -531,8 +527,6 @@ int cc2520_transmit(void) {
 #else /* WITH_SEND_CCA */
 	strobe(CC2520_INS_STXON);
 #endif /* WITH_SEND_CCA */
-	radio_txing(TRUE);
-	radio_tx_acked(FALSE);
 
 	/// Check if transmission occur without errors
 	for (i = LOOP_20_SYMBOLS; i > 0; i--) {
@@ -547,8 +541,6 @@ int cc2520_transmit(void) {
 //				UNET_RADIO.set(TX_STATUS,RADIO_TX_ERR_MAXRETRY);
 //				UNET_RADIO.set(TX_RETRIES,tx_status.bits.TXNRETRY);
 				CC2520_PRINTF("cc2520: TX Collision\n");
-				_isr_handler(); // call the unet handler, since the tx isr will not occour
-
 				return 0; //RADIO_TX_COLLISION;
 			}
 
@@ -578,7 +570,6 @@ int cc2520_transmit(void) {
 				UNET_RADIO.set(TX_RETRIES, 0);
 				radio_tx_acked(TRUE);
 				CC2520_PRINTF("cc2520: TX OK\n");
-				_isr_handler();
 //			}
 			return 0; //RADIO_TX_OK;
 		}
@@ -591,13 +582,13 @@ int cc2520_transmit(void) {
 	UNET_RADIO.set(TX_RETRIES, 0);
 	CC2520_PRINTF("cc2520: do_send() transmission never start\n");
 	CC2520_PRINTF("cc2520: TX Collision\n");
-	_isr_handler(); // call the unet handler, since the tx isr will not occour
 
 	return 0; //RADIO_TX_COLLISION;
 }
 
 /*---------------------------------------------------------------------------*/
 int cc2520_write(const void *buf, uint16_t len) {
+	int ret = -1;
 	uint8_t *frame_control = (uint8_t *) buf;
 	CC2520_PRINTF("cc2520: write: ");
 	CC2520_PRINTF_PACKET(frame_control, len);
@@ -612,8 +603,16 @@ int cc2520_write(const void *buf, uint16_t len) {
 		radio_tx_ack(TRUE);
 	}
 
-	if (cc2520_prepare(buf, len)) return (-1);
-	return cc2520_transmit();
+	radio_txing(TRUE);
+	radio_tx_acked(FALSE);
+
+	if (cc2520_prepare(buf, len)) return ret;
+
+	CC2520_INTERRUPT_ENABLE_CLR();
+	ret = cc2520_transmit();
+	CC2520_INTERRUPT_ENABLE_SET();
+	_isr_handler();
+	return ret;
 }
 /*---------------------------------------------------------------------------*/
 /**
