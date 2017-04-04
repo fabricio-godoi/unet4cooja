@@ -1,32 +1,18 @@
 /*
- * @file:	stdio.h
- * @author:	Fabricio Negrisolo de Godoi
- * @date:	19-02-2017
- * @brief:	Function to input/output text
- *
+ * \file:	stdio.h
+ * \author:	Fabricio Negrisolo de Godoi
+ * \date:	02-04-2017
+ * \brief:	Functions to output formated strings
  */
 
-#ifndef _STDIO_H_
-#define _STDIO_H_
+#ifndef STDIO_H_
+#define STDIO_H_
 
-/* Configurable to use the default input/output */
-#ifdef printf
-#undef printf
-#endif
+int sprintf(char *out, const char *format, ...);
+int printf(const char *format, ...);
 //const char* itoa (unsigned long i);
 
-
-
-
-//int sprintf_lib(char *out, const char *format, ...);
-//int snprintf_lib( char *buf, unsigned int count, const char *format, ... );
-//int printf_lib(const char *format, ...);
-
-
-#define snprintf_lib(buf, count, ... )  printf(__VA_ARGS__)
-#define sprintf(out, ...)               printf(__VA_ARGS__)
-void printf(char *format, ...);
-#define PRINTF(...) printf(__VA_ARGS__)
+#define PRINTF(...) //printf(__VA_ARGS__)
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
@@ -38,4 +24,4 @@ void printf(char *format, ...);
 
 
 
-#endif /* _IOCLASS_H_ */
+#endif /* STDIO_H_ */
