@@ -12,6 +12,9 @@
 #include "cc2520_const.h"
 #include "ieee802154.h"
 
+// Stats
+#include "unet_api.h"
+
 static uint32_t (*_isr_handler)(void);
 static radio_params_t cc2520_radio_params;
 
@@ -471,7 +474,20 @@ int cc2520_init(const void *isr_handler) {
 	setreg(CC2520_FIFOPCTRL, FIFOP_THR(0x7F));
 
 
-	cc2520_set_pan_addr((unsigned)(PANID_INIT_VALUE),(unsigned)(MAC16_INIT_VALUE),NULL);
+#if BRTOS_ENDIAN == BIG_ENDIAN
+	// Big endian
+	uint8_t mac_16[2] = {MAC16_INIT_VALUE};
+	uint8_t pan_16[2] = {PANID_INIT_VALUE};
+	uint16_t mac_id = mac_16[0]<<8+mac_16[1];
+	uint16_t pan_id = pan_16[0]<<8+pan_16[1];
+#else
+	// Little endian
+	uint8_t mac_16[2] = {MAC16_INIT_VALUE};
+	uint8_t pan_16[2] = {PANID_INIT_VALUE};
+	uint16_t mac_id = (mac_16[1]<<8)+mac_16[0];
+	uint16_t pan_id = (pan_16[1]<<8)+pan_16[0];
+#endif
+	cc2520_set_pan_addr(pan_id,mac_id,NULL);
 	cc2520_set_channel(CHANNEL_INIT_VALUE);
 
 
@@ -535,11 +551,9 @@ int cc2520_transmit(void) {
 			if (!(status() & BV(CC2520_TX_ACTIVE))) {
 				/* SFD went high but we are not transmitting. This means that
 				 we just started receiving a packet, so we drop the transmission. */
+				NODESTAT_UPDATE(radiocol);
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 				UNET_RADIO.set(TX_RETRIES, 0);
-				//// Maybe change it to maxretry?
-//				UNET_RADIO.set(TX_STATUS,RADIO_TX_ERR_MAXRETRY);
-//				UNET_RADIO.set(TX_RETRIES,tx_status.bits.TXNRETRY);
 				CC2520_PRINTF("cc2520: TX Collision\n");
 				return 0; //RADIO_TX_COLLISION;
 			}
@@ -566,9 +580,9 @@ int cc2520_transmit(void) {
 //				radio_tx_acked(FALSE);
 //				CC2520_PRINTF("cc2520: TX WAIT\n"); // waiting ack
 //			} else {
+				radio_tx_acked(TRUE);
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
 				UNET_RADIO.set(TX_RETRIES, 0);
-				radio_tx_acked(TRUE);
 				CC2520_PRINTF("cc2520: TX OK\n");
 //			}
 			return 0; //RADIO_TX_OK;
@@ -577,7 +591,7 @@ int cc2520_transmit(void) {
 
 	/* If we are using WITH_SEND_CCA, we get here if the packet wasn't
 	 transmitted because of other channel activity. */
-//  RIMESTATS_ADD(contentiondrop);
+	NODESTAT_UPDATE(radiocol);
 	UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 	UNET_RADIO.set(TX_RETRIES, 0);
 	CC2520_PRINTF("cc2520: do_send() transmission never start\n");
