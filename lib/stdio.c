@@ -189,7 +189,7 @@ bad_fmt:    size+=putc(out, c);
         }
     }
 end:
-//if(out) *out='\0';
+	size+=putc(out,'\0');
     va_end(a);
     return size;
 }
@@ -225,30 +225,3 @@ int sprintf(char *out, const char *format, ...)
 	va_start(a, format);
 	return print(&out, format, a);
 }
-
-
-
-//#define DIGITS 10
-//const char* itoa (unsigned long i){
-//	// max value of 16bits = 0 to 65535
-//	// long is 32bits = 4.294.967.295 (10 digits)
-//
-//	/* Room for INT_DIGITS digits, - and '\0' */
-//	  static char buf[DIGITS + 2];
-//	  char *p = buf + DIGITS + 1;	/* points to terminating '\0' */
-//	  if (i >= 0) {
-//	    do {
-//	      *--p = '0' + (i % 10);
-//	      i /= 10;
-//	    } while (i != 0);
-//	    return p;
-//	  }
-//	  else {			/* i < 0 */
-//	    do {
-//	      *--p = '0' - (i % 10);
-//	      i /= 10;
-//	    } while (i != 0);
-//	    *--p = '-';
-//	  }
-//	  return p;
-//}

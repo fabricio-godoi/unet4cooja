@@ -10,9 +10,6 @@
 
 int sprintf(char *out, const char *format, ...);
 int printf(const char *format, ...);
-//const char* itoa (unsigned long i);
-
-#define PRINTF(...) //printf(__VA_ARGS__)
 
 ////////////////////////////////////////////////
 ////////////////////////////////////////////////
