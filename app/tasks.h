@@ -26,18 +26,15 @@
 
 #include "BRTOSConfig.h"
 
+#define System_Time_StackSize      192
+#define UNET_Benchmark_StackSize   736
+
 #if TASK_WITH_PARAMETERS == 1
 void System_Time(void *parameters);
 void Task_Serial(void *parameters);
-void pisca_led_net(void *param);
-void UNET_App_1_Decode(void *param);
-void pisca_led(void *param);
-void Terminal_Task(void *p);
+void unet_benchmark(void *param);
 #else
 void System_Time(void);
 void Task_Serial(void);
-void pisca_led_net(void);
-void UNET_App_1_Decode(void);
-void pisca_led(void);
-void Terminal_Task(void);
+void unet_benchmark(void);
 #endif
