@@ -15,9 +15,6 @@
 #define BAUD_RATE 				115200
 #define ENABLE_STDIO_PRINTF 	TRUE
 
-
-// TODO: finish porting this to F5437 and F2617, if possible port to F1611
-
 /**
  * UART configuration by MCU selection
  */
@@ -31,8 +28,6 @@
 #define UART_UCxBR1     UCA1BR1
 #define UART_UCxMCTL    UCA1MCTL
 #define UART_UCAxIV		UCA1IV
-
-
 #define UART_UCxIE		UCA1IE
 #define UART_UCTXRXIE	UCRXIE
 #define UART_UCxIFG		UCA1IFG
@@ -49,12 +44,27 @@
 #define UART_UCxBR1		UCA0BR1
 #define UART_UCxMCTL	UCA0MCTL
 #define UART_UCAxIV		UCA0IV
-
 #define UART_UCxIE		IE2
 #define UART_UCTXRXIE	UCA0RXIE
 #define UART_UCxIFG		IFG2
 #define UART_UCTXRXIFG	UCA0TXIFG
 #define UART_USCI		USCIAB0RX_VECTOR
+
+#elif (MCU == msp430fr5969)
+#define UART_PxSEL		P2SEL0
+#define UART_PIN		BIT5|BIT6
+#define UART_CTLx    	UCA1CTL1
+#define UART_TXBUF		UCA1TXBUF
+#define UART_RXBUF		UCA1RXBUF
+#define UART_UCxBR0		UCA1BR0
+#define UART_UCxBR1     UCA1BR1
+#define UART_UCxMCTL    UCA1MCTLW
+#define UART_UCxIE		UCA1IE
+#define UART_UCTXRXIE	UCRXIE
+#define UART_UCxIFG		UCA1IFG
+#define UART_UCTXRXIFG	UCTXIFG
+#define UART_USCI		USCI_A1_VECTOR
+
 #else
 #error "UART not supported in this MCU!"
 #endif

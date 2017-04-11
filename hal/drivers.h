@@ -4,6 +4,8 @@
 *
 *
 **/
+#ifndef DRIVERS_H_
+#define DRIVERS_H_
 
 #include "BRTOS.h"
 #include "mcu.h"
@@ -14,11 +16,7 @@
 
 void drivers_init();
 
-#ifndef putchar
-extern int putchar(int c);
-#endif
-
-#ifndef puts
+int putchar(int c);
 int puts(const char *s);
-#endif
 
+#endif // DRIVERS_H_

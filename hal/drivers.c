@@ -24,12 +24,10 @@ void drivers_init(void *params){
 	leds_init();
 	//*********************************
 	// Enable stdio uart
-	uart_init(UART_PRIORITY); // TODO: hardcoded, should be configurable
-	PRINTF("Serial iniciada com prioridade %d\n",UART_PRIORITY);
+	uart_init(UART_PRIORITY);
 	//*********************************
 	// Enable spi for radio
 	spi_init();
-
 }
 
 
@@ -63,26 +61,25 @@ unsigned char getchar(){
  * \brief Read data from UART buffer
  * \return String with data storage, maximum length 50 bytes
  */
-const unsigned char* gets(){
-	unsigned char string[50];
+int gets(char *string){
 	unsigned char i=0;
 	do{
 		string[i]=getchar();
-	}while(string[i++]!='\0' && (i++)<49);
-
-	string[i]='\0';
-	return string;
+	}while(string[i++]!='\0');
+	string[i++]='\0';
+	return i;
 }
 
 // TI GCC
 #ifndef puts
 int puts(const char *s)
 {
-	int start = (int)s;
+	int size = 0;
 
 	while(*s){
 		while (!(UART_UCxIFG&UART_UCTXRXIFG));	// TX buffer ready?
 		UART_TXBUF = *s++;      		// Store one character to be sent
+		size++;
 	}
 //	while (!(UART_UCxIFG&UART_UCTXRXIFG));	// USCI_xx TX buffer ready?
 //	UART_TXBUF = *s;      		// Store one character to be sent
@@ -90,7 +87,7 @@ int puts(const char *s)
 //	while (!(UART_UCxIFG&UART_UCTXRXIFG));		// USCI_xx TX buffer ready?
 //	UART_TXBUF = LF;			   		// Add line feed (end of line)
 
-	return ((int)s-start);
+	return size;
 }
 #endif
 

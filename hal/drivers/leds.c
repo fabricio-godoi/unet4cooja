@@ -40,29 +40,69 @@ void
 leds_init(void)
 {
 	// Turn LEDs off (according with Cooja)
-	LEDS_RED_OUT  ^= LEDS_RED; LEDS_GREEN_OUT  ^= LEDS_GREEN; LEDS_YELLOW_OUT  ^= LEDS_YELLOW;
 	// Configure pins to output
-	LEDS_RED_DIR  ^= LEDS_RED; LEDS_GREEN_DIR  ^= LEDS_GREEN; LEDS_YELLOW_DIR  ^= LEDS_YELLOW;
+#ifdef LEDS_RED
+	LEDS_RED_OUT  |= LEDS_RED; LEDS_RED_DIR  |= LEDS_RED;
+#endif
+#ifdef LEDS_GREEN
+	LEDS_GREEN_OUT  |= LEDS_GREEN; LEDS_GREEN_DIR  |= LEDS_GREEN;
+#endif
+#ifdef LEDS_YELLOW
+	LEDS_YELLOW_OUT  |= LEDS_YELLOW; LEDS_YELLOW_DIR  |= LEDS_YELLOW;
+#endif
+
+}
+/*---------------------------------------------------------------------------*/
+void
+leds_blink(void)
+{
+//#error "leds_blink not implemented!"
+//  /* Blink all leds that were initially off. */
+//  unsigned char blink;
+//  blink = ~leds;
+//  leds_toggle(blink);
+//
+//  clock_delay(400);
+//
+//  leds_toggle(blink);
 }
 /*---------------------------------------------------------------------------*/
 unsigned char
 leds_get(void) {
-	return ( (LEDS_RED_OUT&LEDS_RED) | (LEDS_GREEN_OUT&LEDS_GREEN) | (LEDS_YELLOW_OUT&LEDS_YELLOW));
+	return (
+#ifdef LEDS_RED
+			(LEDS_RED_OUT&LEDS_RED) |
+#endif
+#ifdef LEDS_GREEN
+			(LEDS_GREEN_OUT&LEDS_GREEN) |
+#endif
+#ifdef LEDS_YELLOW
+			(LEDS_YELLOW_OUT&LEDS_YELLOW)
+#else
+			0x0
+#endif
+			);
 }
 /*---------------------------------------------------------------------------*/
 void
 leds_set(unsigned char ledv)
 {
 	switch(ledv){
+#ifdef LEDS_RED
 		case LEDS_RED:
 			LEDS_RED_OUT &= ~ledv;
 			break;
+#endif
+#ifdef LEDS_GREEN
 		case LEDS_GREEN:
 			LEDS_GREEN_OUT &= ~ledv;
 			break;
+#endif
+#ifdef LEDS_YELLOW
 		case LEDS_YELLOW:
 			LEDS_YELLOW_OUT &= ~ledv;
 			break;
+#endif
 		default:
 			break;
 	}
@@ -72,15 +112,21 @@ void
 leds_on(unsigned char ledv)
 {
 	switch(ledv){
+#ifdef LEDS_RED
 		case LEDS_RED:
 			LEDS_RED_OUT &= ~ledv;
 			break;
+#endif
+#ifdef LEDS_GREEN
 		case LEDS_GREEN:
 			LEDS_GREEN_OUT &= ~ledv;
 			break;
+#endif
+#ifdef LEDS_YELLOW
 		case LEDS_YELLOW:
 			LEDS_YELLOW_OUT &= ~ledv;
 			break;
+#endif
 		default:
 			break;
 	}
@@ -90,15 +136,21 @@ void
 leds_off(unsigned char ledv)
 {
 	switch(ledv){
+#ifdef LEDS_RED
 		case LEDS_RED:
 			LEDS_RED_OUT |= ledv;
 			break;
+#endif
+#ifdef LEDS_GREEN
 		case LEDS_GREEN:
 			LEDS_GREEN_OUT |= ledv;
 			break;
+#endif
+#ifdef LEDS_YELLOW
 		case LEDS_YELLOW:
 			LEDS_YELLOW_OUT |= ledv;
 			break;
+#endif
 		default:
 			break;
 	}
@@ -108,15 +160,21 @@ void
 leds_toggle(unsigned char ledv)
 {
 	switch(ledv){
+#ifdef LEDS_RED
 		case LEDS_RED:
 			LEDS_RED_OUT ^= ledv;
 			break;
+#endif
+#ifdef LEDS_GREEN
 		case LEDS_GREEN:
 			LEDS_GREEN_OUT ^= ledv;
 			break;
+#endif
+#ifdef LEDS_YELLOW
 		case LEDS_YELLOW:
 			LEDS_YELLOW_OUT ^= ledv;
 			break;
+#endif
 		default:
 			break;
 	}

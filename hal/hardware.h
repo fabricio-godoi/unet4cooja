@@ -1,8 +1,7 @@
 /**
 * \file hardware.h
 * \brief Processor macros, defines and registers declaration.
-*
-*
+* \date 10/04/2017
 **/
 
 /*********************************************************************************************************
@@ -18,9 +17,9 @@
 *                                         Hardware Header Files
 *
 *
-*   Author: Gustavo Weber Denardin
-*   Revision: 1.0
-*   Date:     20/03/2009
+*   Author: Gustavo Weber Denardin, Fabricio Negrisolo de Godoi
+*   Revision: 1.0        , 1.1
+*   Date:     20/03/2009 , 10/04/2017
 *
 *********************************************************************************************************/
 
@@ -31,27 +30,31 @@
 #include <msp430.h>
 
 /**
- * MSP430 supported ucontrollers
+ * MSP430 supported MCU
  */
-#define msp430f1611	1
-#define msp430f2617	2
-#define msp430f5437	3
-#define msp430g2553 4
+#define msp430f1611  1
+#define msp430f2617  2
+#define msp430f5437  3
+#define msp430g2553  4
+#define msp430fr5969 5
 
+
+#define __UNKOWN__  0
+#define __SKY__     1
+#define __Z1__      2
+#define __WISMOTE__ 3
 
 /**
- * Select specific uprocessor from options above
+ * Select specific microprocessor from options above
  * WARNING: Don't forget to change Makefile MCU and PLATFORM options
- * msp430f1611 - Sky
- * msp430f2617 - Zolertia Z1
- * msp430f5437 - Wismote
- * msp430g2553 - LaunchPad
+ * msp430f1611  - Sky
+ * msp430f2617  - Zolertia Z1
+ * msp430f5437  - Wismote
+ * msp430g2553  - LaunchPad
+ * msp430fr5969 - LaunchPad
  */
 #define MCU msp430f5437
 
-#define __WISMOTE__ MCU
-#define __SKY__     MCU
-#define __Z1__      MCU
 
 /**
  * Automatic select MCU option
@@ -70,8 +73,11 @@
 #define PLATFORM __WISMOTE__
 #elif (MCU == msp430g2553)
 #include "msp430g2553.h"
+#elif (MCU == msp430fr5969)
+#include "msp430fr5969.h"
+#define PLATFORM __UNKOWN__
 #else
-#define PLATFORM
+#define PLATFORM __UNKOWN__
 #endif
 
 

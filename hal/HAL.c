@@ -53,6 +53,7 @@ INT32U SPvalue;                             ///< Used to save and restore a task
 #define TIMER_REG	TA0R                        // Register
 #define TIMER_INT	TIMER0_A1_VECTOR            // Interrupt
 #define TIMER_IV	TA0IV                       // Interrupt vector
+
 #elif MCU == msp430f2617
 #define TIMER_CTL	TACTL						// Control
 #define TIMER_CCTL	TACCTL1						// Counter control
@@ -60,6 +61,14 @@ INT32U SPvalue;                             ///< Used to save and restore a task
 #define TIMER_REG	TAR							// Register
 #define TIMER_INT	TIMERA1_VECTOR				// Interrupt
 #define TIMER_IV	TAIV						// Interrupt vector
+
+#elif MCU == msp430fr5969
+#define TIMER_CTL	TA0CTL						// Control
+#define TIMER_CCTL	TA0CCTL1					// Counter control
+#define TIMER_CCR	TA0CCR1						// Counter
+#define TIMER_REG	TA0R						// Register
+#define TIMER_INT	TIMER0_A1_VECTOR			// Interrupt
+#define TIMER_IV	TA0IV						// Interrupt vector
 #else
 #error "Timer not supported in this MCU!"
 #endif
@@ -150,7 +159,6 @@ read_tar(void)
 #define interrupt(x) void __attribute__((interrupt (x)))
 interrupt(TIMER_INT) TickTimer(void)
 {
-
 	// ************************
 	// Entrada de interrup��o
 	// ************************
@@ -196,8 +204,6 @@ interrupt(TIMER_INT) TickTimer(void)
 * \brief Software interrupt handler routine (Internal kernel function).
 *  Used to switch the tasks context.
 ****************************************************************/
-volatile unsigned long i;
-//#define PRINT_WAIT(...) PRINTF(__VA_ARGS__); for(i=0;i<200000;i++)
 void SwitchContext(void)
 {
   // as MSP430 does not have sw interrupt, we save 7 regs to make it appear like one.
@@ -261,7 +267,15 @@ void SwitchContext(void)
    // First SR should be 0
    OS_CPU_TYPE *stk_pt = (OS_CPU_TYPE*)&STACK[iStackAddress + (NUMBER_OF_STACKED_BYTES / sizeof(OS_CPU_TYPE))];
 
+   // Add mask to check for stack overflow
+   /*stk_pt += 4;
+   *--stk_pt = 0xaaaaaaaa;
+   *--stk_pt = 0xaaaaaaaa;
+   *--stk_pt = 0xaaaaaaaa;
+   *--stk_pt = 0xaaaaaaaa;*/
+
    // Pointer to Task Entry
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
    *--stk_pt = (0x0000ffff&((OS_CPU_TYPE)FctPtr)) << 16; // copy PC LSB
    *stk_pt |= ((0x000f0000&((OS_CPU_TYPE)FctPtr)) >> 4); // copy PC MSB
    *stk_pt |= (0x00000008); // copy SR (ITE)
