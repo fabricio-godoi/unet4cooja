@@ -114,7 +114,7 @@
 
 /// Defines the maximum number of semaphores\n
 /// Limits the memory allocation for semaphores
-#define BRTOS_MAX_SEM          13 // 13 counted
+#define BRTOS_MAX_SEM          14
 
 /// Defines the maximum number of mutexes\n
 /// Limits the memory allocation for mutex
@@ -132,25 +132,23 @@
 /// TickTimer Defines
 #define configCPU_CLOCK_HZ          16000000uL    ///< CPU clock in Hertz
 #define configCPU_ACLK_HZ			32768uL       ///< ACLK clock in Hertz
-#define configTICK_RATE_HZ          1000        ///< Tick timer rate in Hertz
-#define configTIMER_PRE_SCALER      0                   ///< Informs if there is a timer prescaler
+#define configTICK_RATE_HZ          1000          ///< Tick timer rate in Hertz
+#define configTIMER_PRE_SCALER      0             ///< Informs if there is a timer prescaler
 #define configRTC_CRISTAL_HZ        1000
 #define configRTC_PRE_SCALER        10
 #define OSRTCEN                     0
-//#define INTERVAL					(configCPU_CLOCK_HZ / configTICK_RATE_HZ) >> configTIMER_PRE_SCALER
-#define INTERVAL 8000
 
 // Stack Size of the Idle Task
-#define IDLE_STACK_SIZE     4*NUMBER_MIN_OF_STACKED_BYTES	/// double of minimum stack size
+#define IDLE_STACK_SIZE     4*NUMBER_MIN_OF_STACKED_BYTES
 
 /// Stack Defines
 /// msp430f2274 1KB RAM (total)
 /// msp430f2617 8kb RAM /// msp430f5437 16kb RAM
-#define HEAP_SIZE 			2*4096
+#define HEAP_SIZE 			2*4096 // 4400 its just enough for 9 tasks
 
 // Queue heap defines
 // Configurado com 32 bytes p/ filas (para filas)
-#define QUEUE_HEAP_SIZE 	512
+#define QUEUE_HEAP_SIZE 	128
 
 // Dynamic head define. To be used by DynamicInstallTask and Dynamic Queues
 //#define DYNAMIC_HEAP_SIZE	1*1024
@@ -163,6 +161,7 @@
 #if PRINTF_EN
 #if PRINTF_ARGS_EN
 #include "stdio.h"
+#define PRINTF(...) printf(__VA_ARGS__)
 #include "assert.h"
 #else
 #include "drivers.h"

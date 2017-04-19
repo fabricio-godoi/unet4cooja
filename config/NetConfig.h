@@ -73,9 +73,7 @@
 #define RF_EventHandlerPriority     (INT8U)29
 #define Timer_Priority     			(INT8U)28
 #define UNET_Mutex_Priority         (INT8U)27
-#define APP1_Priority               (INT8U)26
-#define APP2_Priority               (INT8U)25
-#define APP3_Priority               (INT8U)24
+#define UNET_Benchmark_Priority     (INT8U)26
 #define NWK_HandlerPriority         (INT8U)23
 #define MAC_HandlerPriority         (INT8U)22
 
@@ -180,38 +178,42 @@
   #define MAC16_INIT_VALUE   0xFF,0xFF
   #define ROUTC_INIT_VALUE   0x00  
 #endif
-#else
+
+#elif PROCESSOR == MSP430
+
+#define PANID_INIT_VALUE   0x47,0x42
 #if (UNET_DEVICE_TYPE == PAN_COORDINATOR)
-//  #define LAT_MEM_ADDRESS    0x0001FC00
-//  #define LON_MEM_ADDRESS    0x0001FC04
-//  #define MAC16_MEM_ADDRESS
-//  #define MAC64_MEM_ADDRESS  0x00001FF0
-//  #define PANID_MEM_ADDRESS
-  #define PANID_INIT_VALUE   0x47,0x42 /// TODO what the hell is this value for?
-//  #define PANID_INIT_VALUE   0xFF,0xFF
   #define MAC16_INIT_VALUE   0x00,0x00
   #define ROUTC_INIT_VALUE   0x01
+
 #else
-//  #define LAT_MEM_ADDRESS    0x000021C0
-//  #define LON_MEM_ADDRESS    0x000021C4
-//  #define MAC16_MEM_ADDRESS  0x000021C8
-//  #define MAC64_MEM_ADDRESS  0x00001FF0
-//  #define PANID_MEM_ADDRESS  0x000021CC
-  #define PANID_INIT_VALUE   0xFF,0xFF
-  #define MAC16_INIT_VALUE   0xFF,0xFF
+  #ifdef COOJA_H_
+    #define MAC16_INIT_VALUE 0x00,((node_id))
+  #else
+    #define MAC16_INIT_VALUE   0xFF,0xFF
+  #endif
   #define ROUTC_INIT_VALUE   0x00
 #endif
 
-#ifdef COOJA_H_
-#undef MAC16_INIT_VALUE
-#undef PANID_INIT_VALUE
-#define PANID_INIT_VALUE   0x47,0x42 /// TODO what the hell is this value for?
-#define COORDINATOR_ID 0
-#if COORDINATOR_ID == 0
-#define MAC16_INIT_VALUE 0x00,(0x00|(node_id-1))
 #else
-#define MAC16_INIT_VALUE 0x00,(0x00|(node_id))
-#endif
+#if (UNET_DEVICE_TYPE == PAN_COORDINATOR)
+  #define LAT_MEM_ADDRESS    0x0001FC00
+  #define LON_MEM_ADDRESS    0x0001FC04
+  #define MAC16_MEM_ADDRESS
+  #define MAC64_MEM_ADDRESS  0x00001FF0
+  #define PANID_MEM_ADDRESS
+  #define PANID_INIT_VALUE   0xFF,0xFF
+  #define MAC16_INIT_VALUE   0x00,0x00
+  #define ROUTC_INIT_VALUE   0x01
+#else
+  #define LAT_MEM_ADDRESS    0x000021C0
+  #define LON_MEM_ADDRESS    0x000021C4
+  #define MAC16_MEM_ADDRESS  0x000021C8
+  #define MAC64_MEM_ADDRESS  0x00001FF0
+  #define PANID_MEM_ADDRESS  0x000021CC
+  #define PANID_INIT_VALUE   0xFF,0xFF
+  #define MAC16_INIT_VALUE   0xFF,0xFF
+  #define ROUTC_INIT_VALUE   0x00
 #endif
 
 #endif

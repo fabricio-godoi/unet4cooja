@@ -13,6 +13,14 @@
 #include "link.h"
 #include "unet_router.h"
 
+
+// NOTE: the coordinator ID must be set to zero to this fully work
+#ifdef COOJA_ANNOTATION
+#define COOJA_PRINTF(...) PRINTF(__VA_ARGS__)
+#else
+#define COOJA_PRINTF(...)
+#endif
+
 /* neighbor table */
 volatile unet_neighborhood_t  unet_neighbourhood[NEIGHBOURHOOD_SIZE];
 packet_t link_pkt;
@@ -265,19 +273,10 @@ void link_parent_switch(void)
 	node_data_set(NODE_DISTANCE, _thisNodeDepth);
 	if (parent_idx != node_data_get(NODE_PARENTINDEX)){
 
-		//// TODO here is updated the parent of the node
-#ifdef COOJA_H_
 		// Make link between node and parent
-		// TODO probably should clear the last link
-		// TODO parent isn't really the path to the coordinator?
-#if COORDINATOR_ID == 0
-		PRINTF("#L %d 0;red\n",(unet_neighbourhood[node_data_get(NODE_PARENTINDEX)].Addr_16b+1)); // Clear last parent
-		PRINTF("#L %d 1;red\n",(unet_neighbourhood[parent_idx].Addr_16b+1));	// Setup the new parent
-#else
-		PRINTF("#L %d 0;red\n",(unet_neighbourhood[node_data_get(NODE_PARENTINDEX)].Addr_16b)); // Clear last parent
-		PRINTF("#L %d 1;red\n",(unet_neighbourhood[parent_idx].Addr_16b));	// Setup the new parent
-#endif
-#endif
+		// NOTE: the coordinator ID must be set to zero to this fully work
+		COOJA_PRINTF("#L %d 0;red\n",(unet_neighbourhood[node_data_get(NODE_PARENTINDEX)].Addr_16b)); // Clear last parent
+		COOJA_PRINTF("#L %d 1;red\n",(unet_neighbourhood[parent_idx].Addr_16b));	// Setup the new parent
 
 		node_data_set(NODE_PARENTINDEX, parent_idx);
 
