@@ -8,6 +8,8 @@
 #ifndef STDIO_H_
 #define STDIO_H_
 
+#include "drivers.h"
+
 int sprintf(char *out, const char *format, ...);
 int printf(const char *format, ...);
 

@@ -7,10 +7,16 @@
 
 #include "uart.h"
 
-// Pointer to control serial door
+/** Pointer to control serial door */
 BRTOS_Mutex *SerialResource;
-extern BRTOS_Queue *Serial;
 
+/** Serial queue */
+BRTOS_Queue *Serial;
+
+/** Serial event detection */
+BRTOS_Sem *SerialRXEvent;
+
+/** Get value from uart */
 volatile INT8U receive_byte;
 
 
@@ -60,15 +66,16 @@ void uart_init(INT8U priority){
 	// resource is available after initialization
 	// Maximum priority at resource access = priority
 	assert(OSMutexCreate(&SerialResource,priority) == ALLOC_EVENT_OK);
+
+	/** Create queue to read data */
+	assert(OSQueueCreate(32, &Serial) == ALLOC_EVENT_OK);
+
+	SerialRXEvent = NULL;
 }
 
 /*------------------------------------------------------------------------------
 * USCIA interrupt service routine
 ------------------------------------------------------------------------------*/
-//ISR(USCIAB0RX, USCI0RX_ISR)
-//#pragma vector=USCIAB0RX_VECTOR
-//__interrupt void USCI0RX_ISR(void)
-
 #define interrupt(x) void __attribute__((interrupt (x)))
 interrupt(UART_USCI) USCIxRX_ISR(void)
 {
@@ -87,6 +94,8 @@ interrupt(UART_USCI) USCIxRX_ISR(void)
 			// TOOD: Problem: buffer overflow
 			OSQueueClean(Serial);
 		}
+		// Notify applications that serial has an RX event
+		if(SerialRXEvent != NULL) OSSemPost(SerialRXEvent);
 	}
 	else UART_UCAxIV = 0; // clear all interruptions call
 
@@ -97,3 +106,7 @@ interrupt(UART_USCI) USCIxRX_ISR(void)
 	// ************************
 }
 
+
+void uart_callback(BRTOS_Sem *ev){
+	SerialRXEvent = ev;
+}

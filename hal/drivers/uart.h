@@ -75,5 +75,6 @@
 void acquireUART(void);
 void releaseUART(void);
 void uart_init(INT8U);
+void uart_callback(BRTOS_Sem *ev);
 
 #endif /* HAL_DRIVERS_UART_H_ */

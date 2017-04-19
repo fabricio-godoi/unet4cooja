@@ -1,6 +1,6 @@
 /**
 * \file drivers.h
-* \brief Microcontroller drivers defines and function prototypes.
+* \brief Microcontroller drivers; defines and function prototypes.
 *
 *
 **/
@@ -8,14 +8,12 @@
 #define DRIVERS_H_
 
 #include "BRTOS.h"
-#include "mcu.h"
-#include "leds.h"
-#include "uart.h"
-#include "spi.h"
-#include <string.h>
 
 void drivers_init();
 
+/** Serial functions */
+uint8_t getchar(uint8_t *c, ostick_t time_wait);
+int gets(uint8_t *string);
 int putchar(int c);
 int puts(const char *s);
 

@@ -51,9 +51,6 @@
 #define asmv(arg) __asm__ __volatile__(arg)
 
 
-/** Serial queue */
-BRTOS_Queue *Serial;
-
 /** Tasks Handlers */
 BRTOS_TH TH_SYSTEM;
 BRTOS_TH TH_UNET_BM;
@@ -87,8 +84,6 @@ int main(void) {
 	PRINTF("Compiler: %s\n",compiler);
 #endif
 
-	/** Fila da porta serial - 16 bytes */
-	assert(OSQueueCreate(32, &Serial) == ALLOC_EVENT_OK);
 
 	/** uNet **/
 #if(NETWORK_ENABLE == 1)
@@ -111,7 +106,7 @@ int main(void) {
 
 #ifdef COOJA_H_
 	// Notify that the system is setup
-	PRINTF("Node %d started successfully, addr: %02X:%02X:00:00:00:00:%02X:%02X\n",node_id,PANID_INIT_VALUE,MAC16_INIT_VALUE);
+	PRINTF("Node %d, addr: %02X:%02X:00:00:00:00:%02X:%02X\n",node_id,PANID_INIT_VALUE,MAC16_INIT_VALUE);
 #endif
 
 	/** Inicia OS **/

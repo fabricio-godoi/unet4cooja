@@ -8,7 +8,11 @@
 **/
 
 #include "drivers.h"
-#include "BRTOS.h"
+#include "mcu.h"
+#include "leds.h"
+#include "uart.h"
+#include "spi.h"
+#include <string.h>
 
 /**
  * \brief Initialize all drivers from specific MCU
@@ -42,18 +46,19 @@ int putchar(int c)
 #endif
 
 /**
- * \fn unsigned char getchar()
- * \brief Read data from UART buffer
- * \return The character read by UART
+ * \brief Read data from UART queue;
+ * 		  A task exits a pending state with a queue post or by timeout.
+ * \param *c Character read
+ * \param timeout Timeout to the queue pend exits
+ * \return The read status from the queue
  */
 extern BRTOS_Queue *Serial;
-unsigned char getchar(){
-	unsigned char read = '\0';
+uint8_t getchar(uint8_t *c, ostick_t time_wait){
+	*c = (uint8_t) '\0';
 
 	//return READ_BUFFER_OK Data successfully read
 	//return NO_ENTRY_AVAILABLE There is no more available entry in queue
-	OSQueuePend(Serial, &read, 0);
-	return read;
+	return OSQueuePend(Serial, c, time_wait);
 }
 
 /**
@@ -61,11 +66,9 @@ unsigned char getchar(){
  * \brief Read data from UART buffer
  * \return String with data storage, maximum length 50 bytes
  */
-int gets(char *string){
+int gets(uint8_t *string){
 	unsigned char i=0;
-	do{
-		string[i]=getchar();
-	}while(string[i++]!='\0');
+	while(getchar(&string[i++],NO_TIMEOUT) == READ_BUFFER_OK);
 	string[i++]='\0';
 	return i;
 }
@@ -81,17 +84,8 @@ int puts(const char *s)
 		UART_TXBUF = *s++;      		// Store one character to be sent
 		size++;
 	}
-//	while (!(UART_UCxIFG&UART_UCTXRXIFG));	// USCI_xx TX buffer ready?
-//	UART_TXBUF = *s;      		// Store one character to be sent
-
-//	while (!(UART_UCxIFG&UART_UCTXRXIFG));		// USCI_xx TX buffer ready?
-//	UART_TXBUF = LF;			   		// Add line feed (end of line)
 
 	return size;
 }
 #endif
-
-
-
-
 
