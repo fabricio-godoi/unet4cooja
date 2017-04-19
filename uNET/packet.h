@@ -156,9 +156,9 @@ typedef enum
 
 typedef struct
 {
-	packet_state_t  state;
 	uint8_t 		info[PKTINFO_MAX_OPT];
 	uint8_t 		packet[MAX_PACKET_SIZE];
+	packet_state_t  state;
 } packet_t;
 
 #define UNET_MAC_HEADER_SIZE  	    (9)
