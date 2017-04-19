@@ -29,6 +29,8 @@
 #define System_Time_StackSize      192
 #define UNET_Benchmark_StackSize   736
 
+#define Benchmark_Port		222
+
 #if TASK_WITH_PARAMETERS == 1
 void System_Time(void *parameters);
 void Task_Serial(void *parameters);
