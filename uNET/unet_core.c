@@ -35,7 +35,6 @@ Copyright (c) <2009-2013> <Universidade Federal de Santa Maria>
 #include "unet_router.h"
 #include "transport.h"
 #include "trickle.h"
-#include "AppConfig.h"
 
 #if ! defined assert
 #if WINNT
@@ -58,7 +57,7 @@ Copyright (c) <2009-2013> <Universidade Federal de Santa Maria>
 volatile long i;
 #define PRINT_WAIT(...) PRINTF(__VA_ARGS__); for(i=0;i<200000;i++)
 
-uint16_t unet_verbose = 0;//UNET_VERBOSE_LEVEL_MAX; /// TODO change to 0 to disable debug
+uint16_t unet_verbose = 0; // UNET_VERBOSE_LEVEL_MAX;
 
 /* payload vector - max. bytes = MAX_APP_PAYLOAD_SIZE */
 volatile uint8_t     NWKPayload[MAX_APP_PAYLOAD_SIZE];
@@ -88,6 +87,8 @@ BRTOS_Sem* Router_Up_Ack_Request;
 BRTOS_Sem* Router_Up_Route_Request;
 BRTOS_Sem* Router_Up_Ack_Received;
 
+BRTOS_Sem* App_Callback;
+
 BRTOS_TH	TH_RADIO;
 BRTOS_TH	TH_MAC;
 BRTOS_TH	TH_NETWORK;
@@ -99,6 +100,7 @@ BRTOS_Sem    *(SIGNAL_APP1);
 
 /* UNET network statistics */
 struct netstat_t UNET_NodeStat;
+char UNET_NodeStat_Ctrl = 1; // Default: enabled
 
 /* Return a pointer to "UNET_NodeStat" struct */
 void * GetUNET_Statistics(uint8_t* tamanho)
@@ -216,6 +218,7 @@ void UNET_Init(void)
   ////////////////////////////////////////////////
 
   /* UNET signals */
+  App_Callback = NULL;
   assert(OSSemCreate(0,&Radio_RX_Event) == ALLOC_EVENT_OK);
   assert(OSSemCreate(0,&Radio_TX_Event) == ALLOC_EVENT_OK);
 
@@ -406,12 +409,6 @@ void UNET_Link_Task(void)
 
 			UNET_RADIO.get(TX_RETRIES, &res);
 			PRINTF_LINK(2,"TX RETRIES: %u\n\r", res);
-
-#if 0  /* removido, pois o reset est� sendo feito dentro da fun��o unet_packet_output (...)*/
-			// Radio Reset
-			NODESTAT_UPDATE(radioresets);
-			RadioReset();
-#endif
 		}
    }
 }
@@ -448,14 +445,6 @@ void UNET_Radio_Task(void)
 	node_data_set(NODE_ADDR16H,node_addr16.u8[1]);
 	node_data_set(NODE_PANID16L,pan_id_16[0]);
 	node_data_set(NODE_PANID16H,pan_id_16[1]);
-//	UNET_RADIO.set(MACADDR64_0, node_addr64.u8[0]); // <-- MSB
-//	UNET_RADIO.set(MACADDR64_1, node_addr64.u8[1]);
-//	UNET_RADIO.set(MACADDR64_2, node_addr64.u8[2]);
-//	UNET_RADIO.set(MACADDR64_3, node_addr64.u8[3]);
-//	UNET_RADIO.set(MACADDR64_4, node_addr64.u8[4]);
-//	UNET_RADIO.set(MACADDR64_5, node_addr64.u8[5]);
-//	UNET_RADIO.set(MACADDR64_6, node_addr64.u8[6]);
-//	UNET_RADIO.set(MACADDR64_7, node_addr64.u8[7]); // <-- LSB
 #else
 	// Little endian                        0   1
 	// LSB comes first in the memory Ex.: [ L , H ]
@@ -463,14 +452,6 @@ void UNET_Radio_Task(void)
 	node_data_set(NODE_ADDR16L,node_addr16.u8[1]);
 	node_data_set(NODE_PANID16H,pan_id_16[0]);
 	node_data_set(NODE_PANID16L,pan_id_16[1]);
-//	UNET_RADIO.set(MACADDR64_7, node_addr64.u8[0]); // <-- LSB
-//	UNET_RADIO.set(MACADDR64_6, node_addr64.u8[1]);
-//	UNET_RADIO.set(MACADDR64_5, node_addr64.u8[2]);
-//	UNET_RADIO.set(MACADDR64_4, node_addr64.u8[3]);
-//	UNET_RADIO.set(MACADDR64_3, node_addr64.u8[4]);
-//	UNET_RADIO.set(MACADDR64_2, node_addr64.u8[5]);
-//	UNET_RADIO.set(MACADDR64_1, node_addr64.u8[6]);
-//	UNET_RADIO.set(MACADDR64_0, node_addr64.u8[7]); // <-- MSB
 #endif
 
 	node_data_set(NODE_DISTANCE, NODE_DISTANCE_INIT);
@@ -512,9 +493,9 @@ void UNET_Radio_Task(void)
 
 		UNET_RADIO.recv(&(Radio_RX_buffer.packet[MAC_FRAME_CTRL]),&len);
 
-//		PRINTF("unet: read %d\n",len);
-
 		REQUIRE_OR_EXIT(((len > 0) && (len < PACKET_END)), exit_on_error);
+
+		NODESTAT_UPDATE(rxed);
 
 
 #if RADIO_AUTOCRC == TRUE
@@ -542,9 +523,8 @@ void UNET_Radio_Task(void)
 
 		IF_VERBOSE_LEVEL(UNET_VERBOSE_PHY,1,packet_print(&Radio_RX_buffer.packet[MAC_FRAME_CTRL], Radio_RX_buffer.info[PKTINFO_SIZE]));
 
-		if(ieee802154_packet_input(&Radio_RX_buffer) == ACK_REQ_TRUE)
+		if(ieee802154_packet_input(&Radio_RX_buffer) == ACK_REQ_TRUE) /// TODO 'if' does nothing
 		{
-			PRINTF("unet: ACK_REQ_TRUE\n");
 		}
 
 		#if UNET_DEVICE_TYPE != PAN_COORDINATOR
@@ -643,7 +623,7 @@ void UNET_Router_Down_Ack_Task(void)
 
 			packet_release_down();
 
-			NODESTAT_UPDATE(routdrop);
+			NODESTAT_UPDATE(dupnet);
 			PRINTF_ROUTER(1,"DROP DUP PACKET, to %u SN %u \r\n",
 								BYTESTOSHORT(r->info[PKTINFO_DEST16H],r->info[PKTINFO_DEST16L]),r->info[PKTINFO_SEQNUM]);
 			/* estou usando um goto, mas poderia ser um continue */
@@ -670,6 +650,7 @@ void UNET_Router_Down_Ack_Task(void)
 			server_client = unet_tp_head;
 
 			if(r->packet[UNET_NEXT_HEADER] == NEXT_HEADER_UNET_APP){
+				NODESTAT_UPDATE(apprxed);
 				while(server_client != NULL){
 					if (server_client->src_port == r->packet[UNET_DEST_PORT]){
 						server_client->packet = &(r->packet[UNET_APP_HEADER_START]);
@@ -677,6 +658,7 @@ void UNET_Router_Down_Ack_Task(void)
 						server_client->sender_port = r->packet[UNET_SOURCE_PORT];
 						memcpy(&(server_client->sender_address),&(r->packet[UNET_SRC_64]),8);
 						OSSemPost(server_client->wake_up);
+						if(App_Callback != NULL) OSSemPost(App_Callback);
 						break;
 					}
 					server_client = server_client->next;
@@ -908,17 +890,15 @@ void UNET_Router_Up_Ack_Task(void)
 			//packet_print(&r->packet[PHY_PKT_SIZE],r->info[PKTINFO_SIZE]);
 			/// Experimental
 			if(r->packet[UNET_NEXT_HEADER] == NEXT_HEADER_UNET_APP){
-
+				NODESTAT_UPDATE(apprxed);
 				while(server_client != NULL){
-
-					PRINT_WAIT("%s: %d\n",__LINE__,__FILE__);
 					if (server_client->src_port == r->packet[UNET_DEST_PORT]){
 						server_client->packet = &(r->packet[UNET_APP_HEADER_START]);
 						server_client->payload_size = r->packet[UNET_APP_PAYLOAD_LEN];
 						server_client->sender_port = r->packet[UNET_SOURCE_PORT];
 						memcpy(&(server_client->sender_address),&(r->packet[UNET_SRC_64]),8);
 						OSSemPost(server_client->wake_up);
-
+						if(App_Callback != NULL) OSSemPost(App_Callback);
 						break;
 					}
 					server_client = server_client->next;
@@ -977,7 +957,7 @@ void UNET_Router_Up_Task(void)
 
 			r->state = PACKET_WAITING_ACK;
 
-			/* wait ack rx */ /// TODO problem here, not interpreting ACK messages, why?
+			/* wait ack rx */
 			run_trickle(&timer_up_retry);
 			if(OSSemPend(Router_Up_Ack_Received, timer_up_retry.t) != TIMEOUT)
 			{
@@ -1006,3 +986,10 @@ void UNET_Router_Up_Task(void)
 	}
 }
 
+/**
+ * \brief notify application that has pending packets
+ * \param callback is an semaphore that will wake up the application
+ */
+void UNET_Set_App_Callback(BRTOS_Sem *callback){
+	App_Callback = callback;
+}
