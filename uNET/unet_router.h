@@ -10,7 +10,8 @@
 
 #define NO_PARENT					((uint8_t)(-1))
 #define MAX_PARENT_ALLOWED_FAILURES	(uint8_t)10
-#define RTABLE_UP_ENTRIES_MAX_NUM 	16
+//#define RTABLE_UP_ENTRIES_MAX_NUM 	16
+#define RTABLE_UP_ENTRIES_MAX_NUM 	100	// For cooja simulations
 #define ROUTING_UP_TABLE_SIZE   	(uint8_t)RTABLE_UP_ENTRIES_MAX_NUM
 #define NWK_TX_RETRIES          	(uint8_t)3
 #define NWK_TX_RETRIES_UP       	(uint8_t)(NWK_TX_RETRIES)
