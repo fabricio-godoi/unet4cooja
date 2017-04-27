@@ -11,6 +11,11 @@
 // \author Fabrício Negrisolo de Godoi
 // \date   06-04-2017
 // 
+//  Serial at: cooja.interfaces.SerialPort.java
+//  Memory at: cooja.mote.memory.MemoryInterface.java
+//
+
+
 
 //############################################################
 // 
@@ -20,18 +25,18 @@
 TIMEOUT(1800000); // 30 minutes timeout
 
 //Set simulation parameters
-var sim_time = 10000; // TODO change it to 10 minutes of simulation at least!
-//var sim_time = 10*60*1000; // Simulation time h*m*s*ms
-var sim_runs = 10;         // Simulation runs, how many time it'll run
+//var sim_time = 10000; // TODO change it to 10 minutes of simulation at least!
+var sim_time = 60*1000; // Simulation time h*m*s*ms
 
 //This will store all motes information (simplify the script)
 var motes = sim.getMotes();
 
 // This delay is intended to clear the network buffer (hop/hop)
-var buffer_clean_delay = 10000; // one minute // TODO tune it with number of motes
+var buffer_clean_delay = motes.length*2000; // give each mote two seconds to clear the buffer
 
 // This is used to create the output log
-var sim_type = "uNetDebug";//msg;
+var os_name = "none";
+var server_id = 0; // default
 
 //############################################################
 //import Java Package to JavaScript
@@ -39,7 +44,7 @@ importPackage(java.io);
 
 //############################################################
 // 
-//  Auxiliary functions and variables definitions
+//  Auxiliary functions definitions
 // 
 //Transform Date in YYYYMMDDHHmm
 Date.prototype.YYYYMMDDHHMM = function () {
@@ -58,11 +63,46 @@ function pad(number, length) {
     }
     return str;
 }
+// Parse time into mm:ss.mss
+function tick2time(t){
+	var minutes = Math.floor(t/(1000*1000*60))%60;
+	var seconds = Math.floor(t/(1000*1000))%60;
+	var milisec = Math.floor(t/1000)%1000;
+	return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
+}
+// Parse time into mm:ss.mss
+function ms2time(t){
+	var minutes = Math.floor(t/(1000*60))%60;
+	var seconds = Math.floor(t/(1000))%60;
+	var milisec = t%1000;
+	return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
+}
 // Parse an byte and put it as hex string
 function byte2hex(byte) {
 	var b2s = ["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"];
     return ""+(b2s[((byte>>4)&0x0f)])+(b2s[byte&0x0f]);
 }
+// Loading bar functions
+function loading(){this.printed = 0;}
+loading.prototype.start = function(){
+	log.log("0%-------------------------------------------------100%\n");
+	log.log("|<");
+	printed = 0;
+}
+loading.prototype.load = function(percent){
+	while(this.printed < 100*percent){
+		log.log("-");
+		this.printed+=100/50;
+	}
+}
+loading.prototype.end = function(){
+	log.log(">|\n");
+}
+
+//############################################################
+//
+//  Variables definitions
+//
 
 //This will get date YYYYMMDDHHMM
 var today = new Date().YYYYMMDDHHMM();
@@ -71,10 +111,15 @@ var today = new Date().YYYYMMDDHHMM();
 //BTW: FileWriter seems to be buffered.
 var sim_title = sim.getTitle();
 
+// Log the route used in the simulation
+var log_route = "timestamp;id;route;color\n";
+
 //Creater header (this must be sync with the struct)
 var header = "#;" +
 		"apptxed;" +
 		"apprxed;" +
+		"netapptx;" +
+		"netapprx;" +
 		"duplink;" +
 		"routed;" +
 		"dupnet;" +
@@ -87,6 +132,8 @@ var header = "#;" +
 		"chkerr;" +
 		"overbuf;" +
 		"dropped;" +
+		"radiotx;" +
+		"radiorx;" +
 		"radiocol" +
 		"\n";
 
@@ -99,15 +146,42 @@ var header = "#;" +
 // uint8_t get:1;		//<! Get parameter (not implemented)
 // uint8_t set:1;		//<! Set parameter (not implemented)
 // uint8_t unused:1;
-var BMC_START = 1;
-var BMC_STOP  = 1<<1;
-var BMC_STATS = 1<<2;
-var BMC_RESET = 1<<3;
+var BMC_START    = 1;
+var BMC_STOP     = 1<<1;
+var BMC_STATS    = 1<<2;
+var BMC_RESET    = 1<<3;
+var BMC_SHuTDOWN = 1<<4;
+var BMC_GET      = 1<<5;
+var BMC_SET      = 1<<6;
 
-var BMC_COMMAND = 0;
+var BMC_COMMAND = [];
+var BCM_DATA    = (motes.length-1) & 0xFF;
+var BCM_END     = 0x0a; // Ends with '\n'
+
+//############################################################
+//
+//   Simulation initialization
+//
+YIELD_THEN_WAIT_UNTIL(msg.startsWith("server:"));
+server_id = id;
+os_name = msg.replace("server: ","");
+log.log("Server runnning at id "+server_id+"\n");
+
 //Benchmark input control commands
 //When received this message from every client node, the simulation can start 
 var BM_WAIT_CLIENT = "BMCC_START";
+
+/// Notify all clients with the network size
+//Wait system wake up
+GENERATE_MSG(1000, "sim:sleep");
+YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
+// First, send the command
+BMC_COMMAND = [(0xFF & BMC_SET), ((motes.length-1) & 0xFF), BCM_END];
+for(var k = 0; k < motes.length; k++){
+	if(motes[k].getID()!=server_id){
+		motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
+	}
+}
 
 //############################################################
 // 
@@ -120,22 +194,33 @@ var BM_WAIT_CLIENT = "BMCC_START";
 
 log.log("Waiting network stabilization ["+(motes.length-1)+"] ...\n");
 
+var load = new loading();
+load.start();
 // Wait for every client mote to get ready
 var started_clients = 0;
+var printedpc = 0;
 do{
-	YIELD_THEN_WAIT_UNTIL(msg.equals(BM_WAIT_CLIENT));
-	log.log((started_clients+1)+":");
-}while(++started_clients < (motes.length - 1));
-log.log("\n");
+	YIELD_THEN_WAIT_UNTIL(msg.equals(BM_WAIT_CLIENT) || msg.startsWith("#L "));
+	if(msg.startsWith("#L ")){
+		log_route += tick2time(time)+";"+id+";"+msg+"\n";
+	}
+	else{
+		started_clients++;
+		load.load((started_clients)/(motes.length-1));
+	}
+}while(started_clients < (motes.length - 1));
+load.end();
 
 var startup_time = time; // get simulation time
+log.log("Time: "+tick2time(startup_time)+"\n");
+log.log("Simulation expected to finish at: "+tick2time(time+sim_time*1000)+"\n");
 
 // By simulation definition, mote 0 (zero) must be the coordinator
 // Check for the server to start it first
-BMC_COMMAND = (0xFF & BMC_START|BMC_STATS);
+BMC_COMMAND = [(0xFF & BMC_START|BMC_STATS), BCM_END];
 for(var k = 0; k < motes.length; k++){
-	if(motes[k].getID()==0){
-		motes[k].getInterfaces().get("Serial").writeByte(BMC_COMMAND);
+	if(motes[k].getID()==server_id){
+		motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 		break;
 	}
 }
@@ -145,8 +230,8 @@ YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
 
 // Start all clients
 for(var k = 0; k < motes.length; k++){
-	if(motes[k].getID()!=0)
-		motes[k].getInterfaces().get("Serial").writeByte(BMC_COMMAND);
+	if(motes[k].getID()!=server_id)
+		motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
 GENERATE_MSG(100, "sim:sleep");
 YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
@@ -155,23 +240,37 @@ log.log("Simulation running...\n");
 
 // Wait simulation time
 GENERATE_MSG(sim_time, "sim:sleep");
-YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
+//YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
+do{
+	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
+	if(msg.startsWith("#L ")){
+		log_route += tick2time(time)+";"+id+";"+msg+"\n";
+	}
+}while(!msg.equals("sim:sleep"));
 
 // Stop all motes messages, but continue the statistics
-BMC_COMMAND = (0xFF & BMC_STOP|BMC_STATS);
+BMC_COMMAND = [(0xFF & BMC_STOP|BMC_STATS), BCM_END];
 for(var k = 0; k < motes.length; k++){
-	motes[k].getInterfaces().get("Serial").writeByte(BMC_COMMAND);
+	motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
+log.log("Time: "+tick2time(time)+"\n");
 
 // Wait buffer delay time
 log.log("Waiting network buffer...\n");
+log.log("Buffer expected to be clean at: "+tick2time(time+buffer_clean_delay*1000)+"\n");
 GENERATE_MSG(buffer_clean_delay, "sim:sleep");
-YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
+//YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
+do{
+	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
+	if(msg.startsWith("#L ")){
+		log_route += tick2time(time)+";"+id+";"+msg+"\n";
+	}
+}while(!msg.equals("sim:sleep"));
 
 // Stop all motes statistics
-BMC_COMMAND = (0xFF & BMC_STOP);
+BMC_COMMAND = [(0xFF & BMC_STOP), BCM_END];
 for(var k = 0; k < motes.length; k++){
-	motes[k].getInterfaces().get("Serial").writeByte(BMC_COMMAND);
+	motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
 
 //
@@ -188,36 +287,42 @@ for(var k = 0; k < motes.length; k++){
 log.log("Retrieving data from motes ["+motes.length+"] ...\n");
 
 // Create file
-var output = new FileWriter("/home/user/logs/log_"+sim_title+"_"+sim_type+"_"+today+".csv");
+var output = new FileWriter("/home/user/logs/log_"+sim_title+"_"+today+".csv");
 output.write(header);
 
 // Select mote
 log.log("Reading memory:\n");
 var _bytes = 2; //16 bits variable
+var load = new loading();
+load.start();
 for(var k = 0; k < motes.length; k++){
-	log.log(motes[k].getID()+":");
 	output.write(""+motes[k].getID());
 	
-	// Find variable by name
-	_var = motes[k].getMemory().getSymbolMap().get("UNET_NodeStat");
-	//log.log(_var.name+" = "+_var.addr+"["+_var.size+"]\n");
-	
-	// Get value and transform it to number
-	var value = motes[k].getMemory().getMemorySegment(_var.addr, _var.size);
-	var i = 0, j = 0;
-	var hex;
-	var number;
-	for(i=0;i<value.length;i+=_bytes){
-		// Since values read from memory is signed (-128 to 127)
-		// transform it into hex string and parse to be from 0 to 255
-		hex = "";
-		for(var m = _bytes-1; m >= 0; m--)
-			hex += byte2hex(value[i+m]);
-		output.write(";"+parseInt(hex,16));
+	try{
+		// Find variable by name
+		_var = motes[k].getMemory().getSymbolMap().get("UNET_NodeStat");
+		
+		// Get value and transform it to number
+		var value = motes[k].getMemory().getMemorySegment(_var.addr, _var.size);
+		var i = 0, j = 0;
+		var hex;
+		var number;
+		for(i=0;i<value.length;i+=_bytes){
+			// Since values read from memory is signed (-128 to 127)
+			// transform it into hex string and parse to be from 0 to 255
+			hex = "";
+			for(var m = _bytes-1; m >= 0; m--)
+				hex += byte2hex(value[i+m]);
+			output.write(";"+parseInt(hex,16));
+		}
+	} catch(err) {
+		load.end();
+		log.log("\nVariable not found in mote id "+id+"\n");
 	}
 	output.write("\n");
+	load.load((k+1)/motes.length);
 }
-log.log("\n");
+load.end();
 
 //Ouput script total sum (last line), skipping first column
 output.write("SUM");
@@ -231,11 +336,15 @@ for(var i=0; i < number_of_columns; i++){
 }
 output.write("\n");
 
-output.write("\n\n\nNetwork stabilization time;"+startup_time+"\n");
-output.write("Simlation time;"+time+"\n");
+output.write("\n\n\nNetwork stabilization time;"+tick2time(startup_time)+"\n");
+output.write("Simulation total time;"+tick2time(time)+"\n");
+output.write("Defined sim time;"+ms2time(sim_time)+"\n");
+output.write("Defined network settle time;"+ms2time(buffer_clean_delay)+"\n");
 output.write("Number of motes;"+motes.length+"\n");
+output.write("\n\nRoute:\n"+log_route+"\n");
 
 output.close(); /// Save file
+
 
 //############################################################
 //
