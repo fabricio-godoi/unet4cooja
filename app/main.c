@@ -95,12 +95,12 @@ int main(void) {
 	//// Common tasks between server and client
 	assert(InstallTask(&System_Time, "System Time", System_Time_StackSize, SystemTaskPriority, &TH_SYSTEM) == OK);
 	//// App tasks
-	assert(InstallTask(&unet_benchmark, "Blink LED Example", UNET_Benchmark_StackSize, UNET_Benchmark_Priority, &TH_UNET_BM) == OK);
+	assert(InstallTask(&unet_benchmark, "Benchmark", UNET_Benchmark_StackSize, UNET_Benchmark_Priority, &TH_UNET_BM) == OK);
 #else
 	//// Common tasks between server and client
 	assert(InstallTask(&System_Time, "System Time", System_Time_StackSize, SystemTaskPriority, NULL, &TH_SYSTEM) == OK);
 	//// App tasks
-	assert(InstallTask(&unet_benchmark, "Blink LED Example", UNET_Benchmark_StackSize, UNET_Benchmark_Priority, NULL, &TH_UNET_BM) == OK);
+	assert(InstallTask(&unet_benchmark, "Benchmark", UNET_Benchmark_StackSize, UNET_Benchmark_Priority, NULL, &TH_UNET_BM) == OK);
 #endif
 
 

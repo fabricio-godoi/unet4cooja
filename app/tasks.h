@@ -24,19 +24,18 @@
 *
 *********************************************************************************************************/
 
+#ifndef TASKS_H_
+#define TASKS_H_
+
 #include "BRTOSConfig.h"
-
-#define System_Time_StackSize      192
-#define UNET_Benchmark_StackSize   736
-
-#define Benchmark_Port		222
+#include "benchmark.h"
 
 #if TASK_WITH_PARAMETERS == 1
 void System_Time(void *parameters);
 void Task_Serial(void *parameters);
-void unet_benchmark(void *param);
 #else
 void System_Time(void);
 void Task_Serial(void);
-void unet_benchmark(void);
+#endif
+
 #endif
