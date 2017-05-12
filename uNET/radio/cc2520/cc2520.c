@@ -54,7 +54,8 @@ volatile unsigned char pkt_len;
 
 #define WITH_SEND_CCA 1
 #define FOOTER_LEN 2
-#define RTIMER_ARCH_SECOND (4096U*8) // TODO got it from contiki, tune it
+#define RTIMER_ARCH_SECOND 1000 //(4096U*8) // TODO got it from contiki, tune it
+///
 #define RTIMER_SECOND RTIMER_ARCH_SECOND
 #define RTIMER_NOW() OSGetTickCount() //rtimer_arch_now()
 #define RTIMER_CLOCK_LT(a,b)     ((signed short)((a)-(b)) < 0)
@@ -99,7 +100,26 @@ static void flushrx(void) {
   CC2520_STROBE(CC2520_INS_SFLUSHRX);
   CC2520_STROBE(CC2520_INS_SFLUSHRX);
 }
-
+//static void
+//on(void)
+//{
+//  CC2520_ENABLE_FIFOP_INT();
+//  strobe(CC2520_INS_SRXON);
+//  BUSYWAIT_UNTIL(status() & (BV(CC2520_XOSC16M_STABLE)), RTIMER_SECOND / 100);
+//}
+//static void
+//off(void)
+//{
+//  /* Wait for transmission to end before turning radio off. */
+//  BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
+//
+//  strobe(CC2520_INS_SRFOFF);
+//  CC2520_DISABLE_FIFOP_INT();
+//
+//  if(!CC2520_FIFOP_IS_1) {
+//    flushrx();
+//  }
+//}
 
 void clock_delay(unsigned int i) {
 	while (i--) {
@@ -534,11 +554,15 @@ int cc2520_transmit(void) {
 #define LOOP_20_SYMBOLS CC2520_CONF_SYMBOL_LOOP_COUNT
 #endif
 
+	// CC2520 12 symbols is 192us
+	//	320 / 20 = 16us per symbol - 12 symbols = 192us
+
 	// Start transmitting
 #if WITH_SEND_CCA
 	/// TODO get warning "Turning off radio while transmitting, ending packet prematurely" from Cooja
 	strobe(CC2520_INS_SRXON); // TX is aborted by SRXON, STXON, SROFF
 	BUSYWAIT_UNTIL(status() & BV(CC2520_RSSI_VALID), RTIMER_SECOND / 10);
+//	while(!(status() & BV(CC2520_RSSI_VALID)));
 	strobe(CC2520_INS_STXONCCA); // Start transmission
 #else /* WITH_SEND_CCA */
 	strobe(CC2520_INS_STXON);
@@ -551,18 +575,21 @@ int cc2520_transmit(void) {
 			if (!(status() & BV(CC2520_TX_ACTIVE))) {
 				/* SFD went high but we are not transmitting. This means that
 				 we just started receiving a packet, so we drop the transmission. */
+				// Return the radio to RX
+//				BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
+//				strobe(CC2520_INS_SRXON);
 				NODESTAT_UPDATE(radiocol);
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 				UNET_RADIO.set(TX_RETRIES, 0);
 				CC2520_PRINTF("cc2520: TX Collision\n");
-				return 0; //RADIO_TX_COLLISION;
+				return RADIO_TX_ERR_COLLISION;
 			}
 
 			/* We wait until transmission has ended so that we get an
 			 accurate measurement of the transmission time.*/
 			//BUSYWAIT_UNTIL(getreg(CC2520_EXCFLAG0) & TX_FRM_DONE , RTIMER_SECOND / 100);
-//			BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
-			while(!(status() & BV(CC2520_TX_ACTIVE))); // wait the end of transmission
+			BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
+//			while((status() & BV(CC2520_TX_ACTIVE))); // wait the end of transmission
 
 			/**
 			 * 	When AUTOACK is enabled, all frames that are
@@ -573,31 +600,36 @@ int cc2520_transmit(void) {
 
 			/// TODO ACK Disabled until project specification is completed
 			// Check if ACK message return is needed
-//			UNET_RADIO.get(RADIO_STATE,&state);
-//			if (is_radio_tx_ack(state)){ // will need to wait ack
-////				// TX sent, but no acked
-//				UNET_RADIO.set(TX_STATUS, RADIO_TX_WAIT);
+			NODESTAT_UPDATE(radiotx);
+			if (is_radio_tx_ack(cc2520_radio_params.param[RADIO_STATE])){ // will need to wait ack
+				// TX sent, but no acked
+				UNET_RADIO.set(TX_STATUS, RADIO_TX_WAIT);
 //				radio_tx_acked(FALSE);
-//				CC2520_PRINTF("cc2520: TX WAIT\n"); // waiting ack
-//			} else {
-				radio_tx_acked(TRUE);
+				CC2520_PRINTF("cc2520: TX WAIT\n"); // waiting ack
+				return RADIO_TX_WAIT;
+			} else {
+				// Broadcast message, no ack needed
+//				radio_tx_acked(TRUE);
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
 				UNET_RADIO.set(TX_RETRIES, 0);
 				CC2520_PRINTF("cc2520: TX OK\n");
-//			}
+				return RADIO_TX_ERR_NONE;
+			}
 			return 0; //RADIO_TX_OK;
 		}
 	}
 
 	/* If we are using WITH_SEND_CCA, we get here if the packet wasn't
 	 transmitted because of other channel activity. */
+	// Return the radio to RX
+//	BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
+//	strobe(CC2520_INS_SRXON);
 	NODESTAT_UPDATE(radiocol);
 	UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_COLLISION); // RADIO_TX_WAIT
 	UNET_RADIO.set(TX_RETRIES, 0);
 	CC2520_PRINTF("cc2520: do_send() transmission never start\n");
 	CC2520_PRINTF("cc2520: TX Collision\n");
-
-	return 0; //RADIO_TX_COLLISION;
+	return RADIO_TX_ERR_COLLISION;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -611,21 +643,21 @@ int cc2520_write(const void *buf, uint16_t len) {
 	if (frame_control[0] == 0x41) {
 		CC2520_PRINTF("cc2520: ACK NOT needed!\n");
 		radio_tx_ack(FALSE);
+		radio_tx_acked(TRUE);
 	}
 	if (frame_control[0] == 0x61) {
 		CC2520_PRINTF("cc2520: ACK needed!\n");
 		radio_tx_ack(TRUE);
+		radio_tx_acked(FALSE);
 	}
-
 	radio_txing(TRUE);
-	radio_tx_acked(FALSE);
 
 	if (cc2520_prepare(buf, len)) return ret;
 
 	CC2520_INTERRUPT_ENABLE_CLR();
-	ret = cc2520_transmit();
+	if((ret = cc2520_transmit()) != RADIO_TX_WAIT) _isr_handler();
 	CC2520_INTERRUPT_ENABLE_SET();
-	_isr_handler();
+
 	return ret;
 }
 /*---------------------------------------------------------------------------*/
@@ -698,6 +730,7 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 	cc2520_rx_enable();
 	CC2520_INTERRUPT_ENABLE_SET();
 
+	NODESTAT_UPDATE(radiorx);
 	return len;
 }
 /*---------------------------------------------------------------------------*/
@@ -735,10 +768,15 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 			RADIO_STATE_SET(RX_OK);
 		}
 		else{
-//			RADIO_STATE_SET(TX_ACKED); // ACK packet received, transmission ACKED
+			if(is_radio_txing(cc2520_radio_params.param[RADIO_STATE])){
+				RADIO_STATE_SET(TX_ACKED); // ACK packet received, transmission ACKED
+				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
+				UNET_RADIO.set(TX_RETRIES, 0);
+			}
 			flushrx();
 			RADIO_STATE_RESET(RX_OK);
 		}
+
 
 		// Processa o unet_core_isr_handler
 		_isr_handler();

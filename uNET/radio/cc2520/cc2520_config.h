@@ -21,6 +21,7 @@
  * SPI bus - CC2520 pin configuration.
  */
 #define CC2520_CONF_SYMBOL_LOOP_COUNT 2604      /* 326us msp430X @ 16MHz */
+/*each cycle run at 63ns, so it's intended that each instruction runs in 2 cycles - ~128ns */
 //#define IN "IN"
 //#define OUT "OUT"
 

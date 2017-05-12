@@ -107,7 +107,7 @@
 #if (CONTIKI_MAC_ENABLE == 1)
 #define TX_TIMEOUT       20
 #else
-#define TX_TIMEOUT       1000//50
+#define TX_TIMEOUT       50
 #endif
 #define PING_TIME		 10
 #define MAX_PING_TIME	  8
