@@ -93,8 +93,8 @@ uint8_t ieee802154_packet_input(packet_t *p)
 #if RADIO_AUTOCRC == TRUE
 	UNET_RADIO.get(CRC, &crc);
 	if(crc == FALSE){
-		//// TODO RIME, wrong CRC
 		PRINTF_MAC(1,"CRC error!\r\n");
+		NODESTAT_UPDATE(chkerr);
 		return ACK_REQ_FALSE;
 	}
 #else

@@ -17,9 +17,11 @@ packet_t packet_down;
 packet_t packet_multicast_up;
 
 
-#define DEBUG_ENABLED
+//#define DEBUG_ENABLED
 #ifdef DEBUG_ENABLED
 #define PRINTD(...) PRINTF(__VA_ARGS__)
+#else
+#define PRINTD(...)
 #endif
 
 
@@ -239,7 +241,7 @@ uint8_t unet_packet_up_sendto(addr64_t * dest_addr64, uint8_t payload_len)
 	    		payload_len + UNET_NWK_HEADER_SIZE + UNET_LLC_HEADER_SIZE + UNET_MAC_HEADER_SIZE);
 
 	res = unet_router_up();
-
+	NODESTAT_UPDATE(netapptx);
 	return res;
 
 	exit_on_require_error:
@@ -266,7 +268,6 @@ uint8_t unet_router_down(void)
     /* set next hop */
     next_hop_addr16 = link_neighbor_table_addr16_get(p_idx);
     ieee802154_dest16_set(&packet_down, next_hop_addr16);
-
     ieee802154_header_set(&packet_down, DATA_FRAME, ACK_REQ_TRUE);
 
     //packet_down.state = PACKET_WAITING_TX;
@@ -301,6 +302,7 @@ uint8_t unet_packet_down_send(uint8_t payload_len)
     /// Essa fun��o deve retornar o estado tb
     if (unet_router_down() == TRUE)
     {
+    	NODESTAT_UPDATE(netapptx);
     	// Por enquanto retornando ok
     	return RESULT_PACKET_SEND_OK;
     }else{
@@ -353,6 +355,7 @@ uint8_t unet_router_adv(void)
 /*--------------------------------------------------------------------------------------------*/
 //void RadioReset(void);
 //void IncUNET_NodeStat_radioresets(void);
+volatile ostick_t tick, ticked;
 uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_retry)
 {
 	uint8_t state = 0;
@@ -366,11 +369,15 @@ uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_ret
 			PRINTF_PHY(1,"RADIO STATE: %u \r\n", state);
 
 			UNET_RADIO.send(&(pkt->packet[MAC_FRAME_CTRL]), pkt->info[PKTINFO_SIZE]);
-
+//			ticked = (ostick_t) OSGetTickCount();
 			if(OSSemPend(Radio_TX_Event,TX_TIMEOUT) != TIMEOUT)
 			{
+				NODESTAT_UPDATE(txed);
 				UNET_RADIO.get(RADIO_STATE,&state);
-
+				// From; to; msg type; acked?
+//				PRINTD("f: %d; t: %d; %s: %s\n",pkt->packet[MAC_SRC_16],pkt->packet[MAC_DEST_16],
+//						pkt->packet[MAC_FRAME_CTRL] == 0x41?"broadcast":"unicast",
+//						is_radio_tx_acked(state)?"acked":"nacked");
 				if (is_radio_tx_acked(state))
 				{
 					radio_tx_acked(FALSE);
@@ -378,25 +385,30 @@ uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_ret
 					break;
 				}else
 				{
+					NODESTAT_UPDATE(radionack);
 					UNET_RADIO.get(TX_STATUS,&state);
 					PRINTF_MAC(1,"TX SEM OK, but not acked! Cause: %u \r\n", state);
 				}
 			}
 			else
 			{
+//				tick = (ostick_t) OSGetTickCount();
+//				printf("timeout: %n\n",(uint32_t)(ticked-tick));
+				NODESTAT_UPDATE(txfailed);
 				UNET_RADIO.get(RADIO_STATUS,&state);
 				PRINTF_MAC(1,"TX ISR Timeout. RADIO STATE: %u \r\n", state);
 
-				PRINTD("Debug: fatal error, radio stuck\n");
+				PRINTD("DEBUG: fatal error, radio stuck\n");
 
 				/* isso nunca deve acontecer, pois indica travamento do r�dio */
-				NODESTAT_UPDATE(radioresets);
+//				NODESTAT_UPDATE(radioresets);
 				extern void RadioReset(void);
 				RadioReset();
 
 			}
 			DelayTask(delay_retry);
 		}
+		if(tx_retries == 0) NODESTAT_UPDATE(txmaxretries);
 
 	releaseRadio();
 
@@ -504,7 +516,6 @@ uint8_t unet_packet_input(packet_t *p)
 				 * s� para debug.  */
 				if(p->info[PKTINFO_DUPLICATED] == TRUE)
 				{
-					NODESTAT_UPDATE(dupnet);
 					PRINTF_LINK(1,"RX PACKET DUPLICATE! from %u, SN: %u\r\n",
 							BYTESTOSHORT(p->info[PKTINFO_SRC16H],p->info[PKTINFO_SRC16L]), p->info[PKTINFO_SEQNUM]);
 				}
@@ -527,7 +538,7 @@ uint8_t unet_packet_input(packet_t *p)
 				unet_router_up_table_entry_add(src_addr16, dest_addr64);
 
 				PRINTF_ROUTER(2,"Route added or updated\r\n");
-				PRINTF_ROUTER(1,"RX DOWN in buffer, from %u SN %d \r\n", src_addr16, r->info[PKTINFO_SEQNUM]); // TODO chage %u to %04X
+				PRINTF_ROUTER(1,"RX DOWN in buffer, from %04X SN %02X \r\n", src_addr16, r->info[PKTINFO_SEQNUM]);
 
 				/* todo: set node activity  flag */
 				link_set_neighbor_activity(r);
@@ -589,6 +600,9 @@ uint8_t unet_packet_input(packet_t *p)
 					/* post a "ack down" event */
 					extern BRTOS_Sem* Router_Down_Ack_Received;
 					OSSemPost(Router_Down_Ack_Received);
+				}
+				else {
+					NODESTAT_UPDATE(txnacked);
 				}
 			}else
 			{

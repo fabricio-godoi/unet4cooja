@@ -36,7 +36,6 @@ Copyright (c) <2009-2013> <Universidade Federal de Santa Maria>
 #include "ieee802154.h"
 #include "link.h"
 #include "unet_app.h"
-#include "app.h"
 
 #include "string.h"
 
@@ -52,6 +51,7 @@ Copyright (c) <2009-2013> <Universidade Federal de Santa Maria>
 /* External functions */
 void UNET_Init(void);
 void UNET_APP(void);
+void UNET_Set_App_Callback(BRTOS_Sem *callback);
 
 /* UNET tasks */
 #if TASK_WITH_PARAMETERS == 1
@@ -77,27 +77,68 @@ uint8_t Decode_Data_Profile(void);
 typedef uint16_t netst_cnt_t;
 struct netstat_t
 {
-	netst_cnt_t rxed;       // received packets
-	netst_cnt_t txed;       // successfully transmited
-	netst_cnt_t txfailed;   // transmission failures
-	netst_cnt_t routed;     // routed packets
-	netst_cnt_t apptxed;    // apptxed packets
-	netst_cnt_t dropped;    // packets dropped by hops limit, route not available
-	netst_cnt_t overbuf;    // packets dropped by RX buffer overflow
-	netst_cnt_t routdrop;   // packets dropped by routing buffer overflow
-	netst_cnt_t duplink;    // packets duplicates at link layer
-	netst_cnt_t dupnet;    // packets duplicates at net layer
-	netst_cnt_t rxedbytes;  // rxed bytes
-	netst_cnt_t txedbytes;  // txed bytes
-	netst_cnt_t rxbps;       // rx throughput
-	netst_cnt_t txbps;       // tx throughput
-	netst_cnt_t radioresets;  // radio reset
-	netst_cnt_t hellos;       // hellos rxed
+	/// Application
+	netst_cnt_t apptxed;      // application txed packets
+	netst_cnt_t apprxed;      // application rxed packets
+
+	/// Transport
+	netst_cnt_t netapptx;	  // packets storage at network layer, ready to be sent
+	netst_cnt_t netapprx;	  // packets received at network layer, ready to be used to application
+
+	/// Network
+	netst_cnt_t duplink;      // packets duplicates at link layer
+
+	netst_cnt_t routed;       // routed packets
+	netst_cnt_t dupnet;       // packets duplicates at net layer
+	netst_cnt_t routdrop;     // packets dropped by routing buffer overflow
+
+	/// Data Link
+	netst_cnt_t txed;         // successfully transmitted packets
+	netst_cnt_t rxed;         // received packets
+	netst_cnt_t txfailed;     // transmission failures
+	netst_cnt_t txnacked;	  // transmission not acked
+	netst_cnt_t txmaxretries; // transmission max retries reached
+	netst_cnt_t chkerr;       // checksum error
+
+	netst_cnt_t overbuf;      // packets dropped by RX buffer overflow
+	netst_cnt_t dropped;      // packets dropped by hops limit, route not available
+
+	/// Physical
+	netst_cnt_t radiotx;	  // packets sent in the radio
+	netst_cnt_t radiorx;	  // packets recv in the radio
+	netst_cnt_t radiocol;     // radio transmissions collisions
+	netst_cnt_t radionack;    // radio transmission not acknowledged
+
+
+	/// Removed because contiki doesn't use it
+//	netst_cnt_t radioresets;  // radio reset
+
+//	netst_cnt_t rxedbytes;    // rxed bytes
+//	netst_cnt_t txedbytes;    // txed bytes
+//	netst_cnt_t rxbps;        // rx throughput
+//	netst_cnt_t txbps;        // tx throughput
 };
 
+#define NODESTAT_ENABLE()   do{ extern char UNET_NodeStat_Ctrl; UNET_NodeStat_Ctrl=1;} while(0);
+#define NODESTAT_DISABLE()	do{ extern char UNET_NodeStat_Ctrl; UNET_NodeStat_Ctrl=0;} while(0);
 #define NODESTAT_RESET() 	do{ extern struct netstat_t UNET_NodeStat; memset(&UNET_NodeStat, 0x00, sizeof(UNET_NodeStat));} while (0);
 #define NODESTAT_CHECK(x)   if((x) == (netst_cnt_t)(-1)) NODESTAT_RESET();
-#define NODESTAT_UPDATE(x)  do { extern struct netstat_t UNET_NodeStat; NODESTAT_CHECK(++UNET_NodeStat.x)} while(0);
+// Default is enabled
+#define NODESTAT_UPDATE(x)  do {                                                \
+                                extern struct netstat_t UNET_NodeStat;          \
+                                extern char UNET_NodeStat_Ctrl;                 \
+								if(UNET_NodeStat_Ctrl){                         \
+                                    NODESTAT_CHECK(++UNET_NodeStat.x)           \
+								}                                               \
+							}while(0);
+
+#define NODESTAT_ADD(x,y)	do {                                                \
+								extern struct netstat_t UNET_NodeStat;          \
+								extern char UNET_NodeStat_Ctrl;                 \
+								if(UNET_NodeStat_Ctrl){                         \
+									UNET_NodeStat.x += y;                       \
+								}                                               \
+							}while(0);
 
 void* GetUNET_Statistics(uint8_t* tamanho);
 

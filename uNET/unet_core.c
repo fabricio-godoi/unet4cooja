@@ -523,7 +523,7 @@ void UNET_Radio_Task(void)
 
 		IF_VERBOSE_LEVEL(UNET_VERBOSE_PHY,1,packet_print(&Radio_RX_buffer.packet[MAC_FRAME_CTRL], Radio_RX_buffer.info[PKTINFO_SIZE]));
 
-		if(ieee802154_packet_input(&Radio_RX_buffer) == ACK_REQ_TRUE) /// TODO 'if' does nothing
+		if(ieee802154_packet_input(&Radio_RX_buffer) == ACK_REQ_TRUE)
 		{
 		}
 
@@ -650,7 +650,7 @@ void UNET_Router_Down_Ack_Task(void)
 			server_client = unet_tp_head;
 
 			if(r->packet[UNET_NEXT_HEADER] == NEXT_HEADER_UNET_APP){
-				NODESTAT_UPDATE(apprxed);
+				NODESTAT_UPDATE(netapprx);
 				while(server_client != NULL){
 					if (server_client->src_port == r->packet[UNET_DEST_PORT]){
 						server_client->packet = &(r->packet[UNET_APP_HEADER_START]);
@@ -814,6 +814,8 @@ void UNET_Router_Down_Task(void)
 				 * mas isso pode causar replica��o de pacote, pois o pacote pode ter chegado do outro
 				 * lado e estar sendo roteado.  */
 
+
+				NODESTAT_UPDATE(txnacked);
 				/* packet lost, free buffer */
 				if(routing_retries == 0)
 				{
@@ -890,7 +892,7 @@ void UNET_Router_Up_Ack_Task(void)
 			//packet_print(&r->packet[PHY_PKT_SIZE],r->info[PKTINFO_SIZE]);
 			/// Experimental
 			if(r->packet[UNET_NEXT_HEADER] == NEXT_HEADER_UNET_APP){
-				NODESTAT_UPDATE(apprxed);
+				NODESTAT_UPDATE(netapprx);
 				while(server_client != NULL){
 					if (server_client->src_port == r->packet[UNET_DEST_PORT]){
 						server_client->packet = &(r->packet[UNET_APP_HEADER_START]);
@@ -967,6 +969,7 @@ void UNET_Router_Up_Task(void)
 				break;
 			}else
 			{
+				NODESTAT_UPDATE(txnacked);
 				/* packet lost, free buffer */
 				if(routing_retries == 0)
 				{
