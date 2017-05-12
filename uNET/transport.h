@@ -39,7 +39,7 @@ void RemoveServerClient(unet_transport_t *p);
 int unet_listen(unet_transport_t *server);
 int unet_connect(unet_transport_t *client);
 int unet_close(unet_transport_t *server_client);
-int unet_recv(unet_transport_t *server_client, uint8_t *buffer, uint16_t timeout);
+int unet_recv(unet_transport_t *server_client, uint8_t *buffer, ostick_t timeout);
 int unet_send(unet_transport_t *server_client, uint8_t *buffer, uint8_t length, uint16_t ret_time);
 
 

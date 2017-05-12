@@ -78,7 +78,7 @@ int unet_close(unet_transport_t *server_client){
 	return 0;
 }
 
-int unet_recv(unet_transport_t *server_client, uint8_t *buffer, uint16_t timeout){
+int unet_recv(unet_transport_t *server_client, uint8_t *buffer, ostick_t timeout){
 	int ret;
 	if ((ret = OSSemPend(server_client->wake_up,timeout)) == OK)
 	{
