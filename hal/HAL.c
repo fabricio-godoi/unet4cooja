@@ -156,11 +156,17 @@ read_tar(void)
   return t1;
 }
 
+
+/**
+ * TimerA0 Interrupt
+ *   Clock Source: ACLK (32768 Hz)
+ *   Frequency: 1000 Hz (1 ms)
+ */
 #define interrupt(x) void __attribute__((interrupt (x)))
 interrupt(TIMER_INT) TickTimer(void)
 {
 	// ************************
-	// Entrada de interrup��o
+	// Interrupt entrance
 	// ************************
 	OS_INT_ENTER();
 
@@ -183,7 +189,7 @@ interrupt(TIMER_INT) TickTimer(void)
 	} else TIMER_IV = 0;
 
 	// ************************
-	// Interrupt Exit
+	// Interrupt exit
 	// ************************
 	OS_INT_EXIT();
 	// ************************

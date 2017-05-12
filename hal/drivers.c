@@ -46,11 +46,11 @@ int putchar(int c)
 #endif
 
 /**
- * \brief Read data from UART queue;
- * 		  A task exits a pending state with a queue post or by timeout.
- * \param *c Character read
- * \param timeout Timeout to the queue pend exits
- * \return The read status from the queue
+ * \brief           Read data from UART queue;
+ * 		            A task exits a pending state with a queue post or by timeout.
+ * \param *c        Character read
+ * \param timeout   Timeout to the queue pend exits
+ * \return          The read status from the queue
  */
 extern BRTOS_Queue *Serial;
 uint8_t getchar(uint8_t *c, ostick_t time_wait){
@@ -62,14 +62,20 @@ uint8_t getchar(uint8_t *c, ostick_t time_wait){
 }
 
 /**
- * \fn const unsigned char* gets()
- * \brief Read data from UART buffer
- * \return String with data storage, maximum length 50 bytes
+ * \fn int gets(uint8_t *string, ostick_t time_wait)
+ * \brief           Read data from UART buffer until reaches '\n' or timeout
+ * \param string    Array that will be put the data
+ * \param timeout   Timeout to the queue pend exits
+ * \return          Number of bytes read
  */
-int gets(uint8_t *string){
-	unsigned char i=0;
-	while(getchar(&string[i++],NO_TIMEOUT) == READ_BUFFER_OK);
-	string[i++]='\0';
+extern BRTOS_Sem *StringEvent;
+uint8_t gets(uint8_t *string, ostick_t time_wait){
+	uint8_t i=0;
+	if(OSSemPend(StringEvent,time_wait) == OK){
+		do{
+			if(getchar(&string[i],NO_TIMEOUT) == EXIT_BY_NO_ENTRY_AVAILABLE) break;
+		}while(string[i++] != '\n');
+	}
 	return i;
 }
 

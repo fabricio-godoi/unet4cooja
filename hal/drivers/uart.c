@@ -13,8 +13,11 @@ BRTOS_Mutex *SerialResource;
 /** Serial queue */
 BRTOS_Queue *Serial;
 
+/** Serial semaphore */
+BRTOS_Sem *StringEvent;
+
 /** Serial event detection */
-BRTOS_Sem *SerialRXEvent;
+BRTOS_Sem *SerialCallback;
 
 /** Get value from uart */
 volatile INT8U receive_byte;
@@ -69,8 +72,8 @@ void uart_init(INT8U priority){
 
 	/** Create queue to read data */
 	assert(OSQueueCreate(32, &Serial) == ALLOC_EVENT_OK);
-
-	SerialRXEvent = NULL;
+	assert(OSSemCreate(0,&StringEvent) == ALLOC_EVENT_OK);
+	SerialCallback = NULL;
 }
 
 /*------------------------------------------------------------------------------
@@ -91,11 +94,14 @@ interrupt(UART_USCI) USCIxRX_ISR(void)
 		receive_byte = UART_RXBUF; /* Read input data */
 
 		if (OSQueuePost(Serial, receive_byte) == BUFFER_UNDERRUN) {
-			// TOOD: Problem: buffer overflow
 			OSQueueClean(Serial);
 		}
-		// Notify applications that serial has an RX event
-		if(SerialRXEvent != NULL) OSSemPost(SerialRXEvent);
+
+		// Notify application that command has arrived
+		if(receive_byte == '\n'){
+			OSSemPost(StringEvent);
+			if(SerialCallback != NULL) OSSemPost(SerialCallback);
+		}
 	}
 	else UART_UCAxIV = 0; // clear all interruptions call
 
@@ -108,5 +114,5 @@ interrupt(UART_USCI) USCIxRX_ISR(void)
 
 
 void uart_callback(BRTOS_Sem *ev){
-	SerialRXEvent = ev;
+	SerialCallback = ev;
 }
