@@ -35,6 +35,10 @@
 
 #ifdef COOJA_H_
 extern unsigned int node_id;
+#else
+#ifndef node_id // You can define this value at compilation time, automating the setup
+#define node_id 0
 #endif
+#endif // COOJA_H_
 
 #endif /* NODE_ID_H_ */
