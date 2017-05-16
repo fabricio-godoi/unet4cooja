@@ -1,38 +1,51 @@
 // 
-//  TODO update this text, put the workflow here
-//  - This script starts when the first message arrives through UART, then
-// will read the memory that contains the status needed and put it in a 
-// log file in csv format;
-//  - Note that this script is intended to be used with a little endian MCU,
-// and any changes at the code structure (UNET_NodeStat variable) will cause this
-// to read the wrong data;
-// 
-// \brief  Log uNet status in csv file
+// \brief  Log mote statistics in csv file
 // \author Fabrício Negrisolo de Godoi
 // \date   06-04-2017
-// 
+//
+// \details
+//   This script is performed in 4 steps:
+// 1st - Definition of used variables and function, in which:
+//       - motes_statistcs is the variable that store all motes statistics,
+//         "header" variable must be the same type of this structure;
+//       - server_collection is a server variable informing the packets
+//         received by each client;
+//       - "header" must contains the exact format of the statistics
+//         variable in the mote write in .csv;
+//       - server information must got from server mote from UART in 
+//         this exact format: "server: os_name longest_path"
+// 2nd - Simulation initialization (UART):
+//       - Get server information and inform each mote the network size
+// 3rd - Simulation running (UART):
+//       - Wait the network stabilization time ...
+//           ... Each client has a path to server + delay time (10s)
+//       - Start all motes (clean statistics and start the processes) ...
+//           ... wait run time defined by sim_time;
+//       - After sim_time, stop all motes (statistcs and processes)
+// 4th - Results collections (RAM):
+//       - Read the motes memory collecting the statistics specified by
+//         header directly from the memory;
+//
+// Obs.:
 //  Serial at: cooja.interfaces.SerialPort.java
 //  Memory at: cooja.mote.memory.MemoryInterface.java
 //
-
-
 
 //############################################################
 // 
 //  Simulation parameters
 // 
 // TIMEOUT must be the first thing to set
-TIMEOUT(1800000); // 30 minutes timeout
+TIMEOUT(3600000); // 60 minutes timeout
 
 //Set simulation parameters
-//var sim_time = 10000; // TODO change it to 10 minutes of simulation at least!
-var sim_time = 60*1000; // Simulation time h*m*s*ms
+var sim_time = 10*60*1000; // Simulation time h*m*s*ms
 
 //This will store all motes information (simplify the script)
 var motes = sim.getMotes();
 
 // This delay is intended to clear the network buffer (hop/hop)
-var buffer_clean_delay = motes.length*2000; // give each mote two seconds to clear the buffer
+var buffer_clean_delay = 1000; // wait one second to clear the buffer
 
 // This is used to create the output log
 var os_name = "none";
@@ -40,6 +53,13 @@ var os_net  = "none";
 var net_pkts= "null"
 var server_id = 0; // default
 var server_mote = null;
+var sim_title = sim.getTitle();
+
+// Statistcs variables
+var motes_statistics = "UNET_NodeStat";
+var server_collection = "bm_pkts_recv";
+
+//// TODO need to add simulation environment configuration to output file
 
 //############################################################
 //import Java Package to JavaScript
@@ -136,12 +156,8 @@ function readVariable(_mote, _name, _bytes){
 //This will get date YYYYMMDDHHMM
 var today = new Date().YYYYMMDDHHMM();
 
-//Open log_<sim>.txt for writing.
-//BTW: FileWriter seems to be buffered.
-var sim_title = sim.getTitle();
-
 // Log the route used in the simulation
-var log_route = "timestamp;id;route;color\n";
+var log_route = "timestamp;id;route\n";
 
 //Creater header (this must be sync with the struct)
 var header = "#;" +
@@ -164,7 +180,8 @@ var header = "#;" +
 		"dropped;" +
 		"radiotx;" +
 		"radiorx;" +
-		"radiocol" +
+		"radiocol;" +
+		"radionack" +
 		"\n";
 
 // Benchmark output control commands
@@ -198,15 +215,16 @@ YIELD_THEN_WAIT_UNTIL(msg.startsWith("server:"));
 server_id = id;
 var server_mote = mote;
 var string = msg.replace("server: ","").split(" ");
-os_name = string[0]; os_net = string[1]; net_pkts = string[2];
+os_name = string[0]; os_net = string[1]; longest_path = string[2];
 log.log("==========================================\n");
 log.log("Simulation Parameters\n");
 log.log("Server ID: "+server_id+"\n");
 log.log("Server OS: "+os_name+"\n");
 log.log("OS Network: "+os_net+"\n");
-log.log("Server packets/s: "+net_pkts+"\n");
-log.log("Total packets expected: "+sim_time/((motes.length-1)*1000/net_pkts)+"\n");
-log.log("Delay between packets: "+((motes.length-1)*1000/net_pkts).toString()+"ms\n");
+log.log("Longest path (Hops): "+longest_path+"\n");
+log.log("Minimum transmission period Tm = H * 10ms: "+(longest_path*10)+"ms\n");
+log.log("Delay between packets: "+(longest_path*10*(motes.length-1))+"ms\n");
+log.log("Total packets expected per client: "+Math.round(sim_time/(longest_path*10*(motes.length-1)))+"\n");
 log.log("==========================================\n");
 
 //Benchmark input control commands
@@ -220,9 +238,7 @@ YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
 // First, send the command
 BMC_COMMAND = [(0xFF & BMC_SET), ((motes.length-1) & 0xFF), BCM_END];
 for(var k = 0; k < motes.length; k++){
-//	if(motes[k].getID()!=server_id){
-		motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
-//	}
+	motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
 
 //############################################################
@@ -230,21 +246,19 @@ for(var k = 0; k < motes.length; k++){
 //  Simulation start
 // 
 
-//Get simulation type (DEFAULT, FWR_ACK, FIN_BUFF)
-//YIELD_THEN_WAIT_UNTIL(msg.equals("UDP server started"));
-//YIELD(); // Get next message that contains CONTIKI_CONF_TYPE
-
+// Network stabilization
 log.log("Waiting network stabilization ["+(motes.length-1)+"] ...\n");
 
+//Wait for every client mote to get ready
 var load = new loading();
 load.start();
-// Wait for every client mote to get ready
 var started_clients = 0;
-var printedpc = 0;
 do{
 	YIELD_THEN_WAIT_UNTIL(msg.equals(BM_WAIT_CLIENT) || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
-		log_route += tick2time(time)+";"+id+";"+msg+"\n";
+		msg = msg.split(";")[0];
+		if(msg.split(" ")[2].equals("1"))
+			log_route += tick2time(time)+";"+id+";"+msg+"\n";
 	}
 	else{
 		started_clients++;
@@ -253,34 +267,42 @@ do{
 }while(started_clients < (motes.length - 1));
 load.end();
 
-var startup_time = time; // get simulation time
-log.log("Time: "+tick2time(startup_time)+"\n");
+// Stabilization time
+var startup_time = time;
+log.log("Path creation time: "+tick2time(startup_time)+"\n");
+
+// Wait ten seconds to be sure that the network is stable
+GENERATE_MSG(10000, "sim:sleep");
+do{
+	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
+	if(msg.startsWith("#L ")){
+		msg = msg.split(";")[0];
+		if(msg.split(" ")[2].equals("1"))
+			log_route += tick2time(time)+";"+id+";"+msg+"\n";
+	}
+}while(!msg.equals("sim:sleep"));
+
+log.log("Stabilization time: "+tick2time(time)+"\n");
 log.log("Simulation expected to finish at: "+tick2time(time+sim_time*1000)+"\n");
 
-// By simulation definition, mote 0 (zero) must be the coordinator
-// Check for the server to start it first
+//Start all motes, server first
 BMC_COMMAND = [(0xFF & BMC_START|BMC_STATS), BCM_END];
 server_mote.getInterfaces().get("Serial").writeArray(BMC_COMMAND);
-GENERATE_MSG(100, "sim:sleep");
-YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
-
-// Start all clients
 for(var k = 0; k < motes.length; k++){
 	if(motes[k].getID()!=server_id)
 		motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
-GENERATE_MSG(100, "sim:sleep");
-YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
 
 log.log("Simulation running...\n");
 
 // Wait simulation time
 GENERATE_MSG(sim_time, "sim:sleep");
-//YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
 do{
 	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
-		log_route += tick2time(time)+";"+id+";"+msg+"\n";
+		msg = msg.split(";")[0];
+		if(msg.split(" ")[2].equals("1"))
+			log_route += tick2time(time)+";"+id+";"+msg+"\n";
 	}
 }while(!msg.equals("sim:sleep"));
 
@@ -299,7 +321,9 @@ GENERATE_MSG(buffer_clean_delay, "sim:sleep");
 do{
 	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
-		log_route += tick2time(time)+";"+id+";"+msg+"\n";
+		msg = msg.split(";")[0];
+		if(msg.split(" ")[2].equals("1"))
+			log_route += tick2time(time)+";"+id+";"+msg+"\n";
 	}
 }while(!msg.equals("sim:sleep"));
 
@@ -326,12 +350,13 @@ log.log("Retrieving data from motes ["+motes.length+"] ...\n");
 var output = new FileWriter("/home/user/logs/log_"+sim_title+"_"+os_name+"_"+os_net+"_"+today+".csv");
 output.write(header);
 
-//bm_pkts_recv
-pkts_per_client = readVariable(server_mote, "bm_pkts_recv", 2).split(";");
+// Reading memory
+log.log("Reading memory:\n");
 
+//bm_pkts_recv
+pkts_per_client = readVariable(server_mote, server_collection, 2).split(";");
 
 // Select mote
-log.log("Reading memory:\n");
 var load = new loading();
 load.start();
 for(var k = 0; k < motes.length; k++){
@@ -340,7 +365,7 @@ for(var k = 0; k < motes.length; k++){
 		output.write("0;");
 	else
 		output.write(pkts_per_client[motes[k].getID()]+";");
-	output.write(readVariable(motes[k],"UNET_NodeStat",2));
+	output.write(readVariable(motes[k],motes_statistics,2));
 	output.write("\n");
 	load.load((k+1)/motes.length);
 }
@@ -358,14 +383,14 @@ for(var i=0; i < number_of_columns; i++){
 }
 output.write("\n");
 
-output.write("\n\n\nNetwork stabilization time;"+tick2time(startup_time)+"\n");
+output.write("\n\n\nNetwork path creation time;"+tick2time(startup_time)+"\n");
 output.write("Simulation total time;"+tick2time(time)+"\n");
 output.write("Defined sim time;"+ms2time(sim_time)+"\n");
 output.write("Defined network settle time;"+ms2time(buffer_clean_delay)+"\n");
 output.write("Number of motes;"+motes.length+"\n");
 output.write("Defined server pkt/s;"+net_pkts+"\n");
 output.write("Network;"+os_net+"\n");
-output.write("Success rate;=100*C"+(motes.length+2)+"/B"+(motes.length+2)+"\n");
+output.write("Success rate;=100*B"+(motes.length+2)+"/C"+(motes.length+2)+"\n");
 output.write("\n\nRoute:\n"+log_route+"\n");
 
 output.close(); /// Save file
