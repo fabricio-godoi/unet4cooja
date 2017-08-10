@@ -48,7 +48,7 @@
  */
 
 /** Define Benchmark debug messages */
-#define BM_DEBUG
+//#define BM_DEBUG
 #ifdef BM_DEBUG
 #define BM_PRINTF(...) PRINTF(__VA_ARGS__)
 #define BM_PRINTF_ADDR64(x)	print_addr64(x)
@@ -57,27 +57,49 @@
 #define BM_PRINTF_ADDR64(x)
 #endif
 
+// This enable/disable the counter to check the time
+// between sending and receiving a message in tick counts
+#define BM_CHK_TXRX_TIME_EN		FALSE
 
 // Enable/Disable application communication
 static uint8_t bm_en_comm = 0; // default: disabled
 static uint8_t bm_num_of_nodes = 0;
+static uint8_t bm_num_of_packets = 0;
+static uint16_t bm_interval = 0;
 static Benchmark_Control_Type bm_ctrl;
 static uint8_t data[16]; // used to read serial
 static uint16_t bm_pkts_recv[255]; // individual packets received count per client
-
-static void benchmark_parse_control(void){
+static uint32_t stick = 0; // start tick from serial command
+static void benchmark_parse_control(uint8_t data[]){
+	bm_ctrl.ctrl = data[0];
 	BM_PRINTF("benchmark: Command 0x%02X received!\n",bm_ctrl.ctrl);
-	if(bm_ctrl.c.start) { bm_en_comm = TRUE; OSCountReset(); }
+	if(bm_ctrl.c.start) {
+		bm_en_comm = TRUE;
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
+		// Synchronization method between all nodes,
+		// can only be accomplished by the simulator,
+		// since it can send the same message to all
+		// motes at once.
+		stick = (uint32_t) OSGetTickCount();
+#endif
+//#if (UNET_DEVICE_TYPE == ROUTER)
+//		OSDelayTask(10); // Wait some time to server startup
+//#endif
+	}
 	if(bm_ctrl.c.stop)  { bm_en_comm = FALSE; }
 	if(bm_ctrl.c.stats) { NODESTAT_ENABLE();  }
 	else 				{ NODESTAT_DISABLE(); }
 	if(bm_ctrl.c.reset) { NODESTAT_RESET();   }
 	if(bm_ctrl.c.get)   { printf("%02X\n",bm_ctrl.ctrl); }
-//	if(bm_ctrl.c.set){
+	if(bm_ctrl.c.set){
+		bm_num_of_nodes = data[1];
+		bm_num_of_packets = data[2];
+		bm_interval = (uint16_t)(data[3]<<7) + data[4];
+		BM_PRINTF("benchmark: Nodes: %d; Interval %d\n",bm_num_of_nodes,bm_interval);
 //		if(getchar(&bm_num_of_nodes,0) == READ_BUFFER_OK){
 //			printf("Number of motes: %u\n",bm_num_of_nodes);
 //		}
-//	}
+	}
 }
 
 #if 0
@@ -122,7 +144,9 @@ void unet_benchmark(void){
 
 	// Packet that will be received
 	Benchmark_Packet_Type bm_packet = { 0, 0, "\0" };
-	ostick_t ticked, tick;
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
+	uint32_t tick;
+#endif
 
 	// Task semaphore, wake on unet or uart command
 	BRTOS_Sem *bm_sem;
@@ -137,25 +161,21 @@ void unet_benchmark(void){
 	unet_connect(&client);
 
 	// Notify the observer with some information
-	printf("server: brtos unet %u\n",BENCHMARK_MAX_PACKETS_SECOND);
+	printf("server: brtos unet\n");
 
 
 	// Wait observe response to actually initiate the process
 	gets(data, 0);
-	bm_ctrl.ctrl = data[0];
-	benchmark_parse_control();
-	if(bm_ctrl.c.set){
-		bm_num_of_nodes = data[1];
-		BM_PRINTF("Number of motes: %u\n",bm_num_of_nodes);
-	}
+	benchmark_parse_control(data);
 	assert(bm_num_of_nodes != 0);
-
+	assert(bm_interval != 0);
 
 	/**
 	 * NOTE:
 	 *  Observer (simulator) will wait for every node to set the parent,
 	 *  when it's all setup, the observer will start every mote individually.
 	 */
+	uint16_t i;
 	for(;;)
 	{
 		// Network or Serial reception
@@ -163,21 +183,31 @@ void unet_benchmark(void){
 
 			// Check for control messages
 			if (gets(data, NO_TIMEOUT) > 0){
-				bm_ctrl.ctrl = data[0];
-				benchmark_parse_control();
+//				bm_ctrl.ctrl = data[0];
+				benchmark_parse_control(data);
+				if(bm_ctrl.c.reset){
+					for(i=0;i<=bm_num_of_nodes;i++) bm_pkts_recv[i] = 0;
+				}
 			}
 
 			// Wake on packet receive, or to check if there is some control message
 			if (unet_recv(&client,(uint8_t *)&bm_packet, NO_TIMEOUT) == OK){
-				tick = OSGetTickCount();
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
+				tick = (uint32_t) OSGetTickCount() - stick;
+#endif
 				// Make a individual count for each client
 				bm_pkts_recv[client.sender_address.u8[7]]++;
 				NODESTAT_UPDATE(apprxed);
-				BM_PRINTF("tick: %n\n",(uint32_t)tick);
-				BM_PRINTF("server: %n; %d; %s; from: %d\n",
+
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
+				BM_PRINTF("server: delay to receive was %n; msg [%d] %s; from: %d\n",
 						((uint32_t)tick-bm_packet.tick), bm_packet.msg_number,
 						bm_packet.message,client.sender_address.u8[7]);
-//				BM_PRINTF_ADDR64(&client.sender_address);
+#else
+				BM_PRINTF("server: msg [%d] recv from: %d\n",bm_packet.msg_number,client.sender_address.u8[7]);
+
+				if(strcmp(bm_packet.message, BENCHMARK_MESSAGE) !=0 )	NODESTAT_UPDATE(corrupted);
+#endif
 			}
 		}
 	}
@@ -217,15 +247,12 @@ void unet_benchmark(void){
 
 	// Wait observe response to actually initiate the process
 	gets(data, 0);
-	bm_ctrl.ctrl = data[0];
-	benchmark_parse_control();
-	if(bm_ctrl.c.set){
-		bm_num_of_nodes = data[1];
-		BM_PRINTF("Number of motes: %u\n",bm_num_of_nodes);
-	}
+//	bm_ctrl.ctrl = data[0];
+	benchmark_parse_control(data);
 	assert(bm_num_of_nodes != 0);
+	assert(bm_interval != 0);
+
 	//	ostick_t send_interval = bm_num_of_nodes*(1000/BENCHMARK_MAX_PACKETS_SECOND);
-	ostick_t send_interval = (ostick_t)(bm_num_of_nodes) * (BENCHMARK_LONGEST_PATH*150) + 30;
 	ostick_t send_time; // Time to send
 	ostick_t wait_time; // Minimum time to wait, complement send_time
 	ostick_t ticked, tick;
@@ -233,8 +260,9 @@ void unet_benchmark(void){
 
 	//	send_time = random_get()%send_interval;
 	//	send_time = send_interval * node_id / bm_num_of_nodes;
-	send_time = (ostick_t)(bm_num_of_nodes - node_id) * (BENCHMARK_LONGEST_PATH*150) + 30; // bigger ids first - 3 seconds for each mote
-	wait_time = 0;
+	send_time = (ostick_t)(bm_interval/bm_num_of_nodes) * (bm_num_of_nodes - node_id); // start close from server
+	if((ostick_t)send_time == 0) send_time = (ostick_t) NO_TIMEOUT;
+	wait_time = 0; // Wait until start message arrives
 
 	// Wait network stabilization, when the parent is known
 	DelayTask(500); // wait unet network initialize
@@ -242,39 +270,64 @@ void unet_benchmark(void){
 	// Notify the observer that is all ready to start
 	printf(BENCHMARK_CLIENT_CONNECTED);
 
+	// Counter for number of messages sent
 	for(;;)
 	{
 		// Wake only the task on control received or timeout to send the message
+		wait_serial:
 		if(gets(data, wait_time) > 0){
-			bm_ctrl.ctrl = data[0];
-			benchmark_parse_control();
+//			bm_ctrl.ctrl = data[0];
+			benchmark_parse_control(data);
 			if(bm_ctrl.c.start){
-				// Delay the start of messages
-				if(gets(data, send_time) > 0){
-					bm_ctrl.ctrl = data[0];
-					benchmark_parse_control();
-				}
-//				BM_PRINTF("benchmark: started\n");
+				bm_packet.tick = 0;
+				bm_packet.msg_number = 1;
 			}
 			if(bm_ctrl.c.stop) wait_time = 0;
+			if(bm_ctrl.c.set){
+				send_time = (ostick_t)(bm_interval/bm_num_of_nodes) * (bm_num_of_nodes - node_id); // start close from server;
+			}
+
+
+//			printf("send_time = %n\n",(uint16_t)send_time);
+//			printf("wait_time = %n\n",(uint16_t)wait_time);
+			// Delay the start of messages
+			if(!bm_ctrl.c.stop && bm_ctrl.c.start && wait_time != send_time){
+				wait_time = send_time;
+				goto wait_serial;
+			}
 		}
 
 		// Send message to coordinator
 		if(bm_en_comm){
 			ticked = (ostick_t) OSGetTickCount();
-			bm_packet.tick = (uint32_t) ticked;
+
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
+			bm_packet.tick = (uint32_t) ticked - stick;
+#endif
+			// Send the message
 			unet_send(&server,(uint8_t*)&bm_packet, BM_PACKET_SIZE, 0);
+
 			tick = (ostick_t) OSGetTickCount();
-			BM_PRINTF("client: msg %d - %n\n",bm_packet.msg_number,(uint32_t)ticked);
+
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
+			BM_PRINTF("client: msg [%d] sent delay was %n\n",bm_packet.msg_number,(uint32_t)ticked-tick);
+#else
+			BM_PRINTF("client: msg [%d] sent\n",bm_packet.msg_number);
+#endif
 
 			NODESTAT_UPDATE(apptxed);
 			bm_packet.msg_number++;
-			wait_time =  (ostick_t)send_interval -  (ostick_t)(tick - ticked);
-			if(wait_time <= 0 || wait_time > send_interval) wait_time = NO_TIMEOUT;
+			if(bm_packet.msg_number > bm_num_of_packets){
+				wait_time = 0; bm_en_comm = FALSE;
+				printf(BENCHMARK_CLIENT_DONE);
+			}
+			else{
+				wait_time =  (ostick_t)bm_interval -  (ostick_t)(tick - ticked);
+//				printf("client: next delay %n\n",wait_time);
+				if(wait_time == 0 || wait_time > bm_interval) wait_time = NO_TIMEOUT;
+			}
 		}
 
 	}
 }
 #endif
-
-
