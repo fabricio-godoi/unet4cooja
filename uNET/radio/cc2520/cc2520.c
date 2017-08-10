@@ -100,6 +100,10 @@ static void flushrx(void) {
   CC2520_STROBE(CC2520_INS_SFLUSHRX);
   CC2520_STROBE(CC2520_INS_SFLUSHRX);
 }
+
+static void flushtx(void) {
+  strobe(CC2520_INS_SFLUSHTX);
+}
 //static void
 //on(void)
 //{
@@ -511,7 +515,15 @@ int cc2520_init(const void *isr_handler) {
 	cc2520_set_channel(CHANNEL_INIT_VALUE);
 
 
+	flushtx();
 	flushrx();
+
+
+
+	// Enable radio in reception mode
+    	strobe(CC2520_INS_SRXON);
+	BUSYWAIT_UNTIL(status() & (BV(CC2520_XOSC16M_STABLE)), RTIMER_SECOND / 100);
+	CC2520_ENABLE_FIFOP_INT();
 
 	CC2520_PRINTF("cc2520: Radio initialized!\n");
 
@@ -522,14 +534,11 @@ int cc2520_prepare(const void *data, unsigned short len) {
 	uint8_t total_len;
 
 	total_len = len + FOOTER_LEN;
-	if ((total_len == 0) || (total_len > 128)) { // TODO check if it should be "len" , (probably not) check the transmit part (TXONCCA)
-		return -1;
-	}
 
 	CC2520_PRINTF("cc2520: sending %d bytes\n", len);
 
 	/* Write packet to TX FIFO. */
-	strobe(CC2520_INS_SFLUSHTX);
+	flushtx();
 
 	CC2520_WRITE_FIFO_BUF(&total_len, 1);
 	CC2520_WRITE_FIFO_BUF(data, len);
@@ -635,6 +644,12 @@ int cc2520_transmit(void) {
 /*---------------------------------------------------------------------------*/
 int cc2520_write(const void *buf, uint16_t len) {
 	int ret = -1;
+
+	// Error in packet size
+	if (((len + FOOTER_LEN) <= 0) || ((len + FOOTER_LEN) > 127)) {
+		return -1;
+	}
+
 	uint8_t *frame_control = (uint8_t *) buf;
 	CC2520_PRINTF("cc2520: write: ");
 	CC2520_PRINTF_PACKET(frame_control, len);
@@ -670,23 +685,12 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 	volatile uint8_t len;
 	uint8_t footer[2];
 
-	CC2520_INTERRUPT_ENABLE_CLR();
-
-	/* Disable packet reception */
-	cc2520_rx_disable();
-
+	// If reach here without FIFOP, some bug occured
 	if (!CC2520_FIFOP_IS_1) {
 		return 0;
 	}
 
 	CC2520_READ_FIFO_BYTE(len);
-#ifdef CC2520_DEBUG
-	if(len == CC2520_ACK_LENGTH){
-		CC2520_PRINTF("cc2520: ack %d\n",len);
-	}
-	CC2520_PRINTF("cc2520: read: %d bytes\n",len);
-#endif
-
 	if (len > FOOTER_LEN && len < buf_len) { // not shorter, neither longer
 
 		CC2520_READ_FIFO_BUF(buf, len - FOOTER_LEN);
@@ -714,6 +718,8 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 		cc2520_radio_params.st_radio_param.last_lqi = buf[1] & FOOTER1_CORRELATION;
 
 	} else {
+		/* Oops, out of synch */
+		flushrx();
 		len = 0;
 	}
 
@@ -726,22 +732,24 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 		}
 	}
 
-	/* Enable packet reception */
-	cc2520_rx_enable();
-	CC2520_INTERRUPT_ENABLE_SET();
-
 	NODESTAT_UPDATE(radiorx);
 	return len;
 }
 /*---------------------------------------------------------------------------*/
 int cc2520_read(const void *buf, uint16_t *len) {
+	/* Disable packet reception */
+	CC2520_DISABLE_FIFOP_INT();
+	cc2520_rx_disable();
 	*len = cc2520_get_rxfifo((uint8_t *) buf, 128);
+	cc2520_rx_enable();
+	CC2520_ENABLE_FIFOP_INT();
 	return 0;
 }
 
 
 /*---------------------------------------------------------------------------*/
 // \biref FIFOP interrupt, indicates RX activity
+static unsigned char rxfifo_length;
 extern INT8U iNesting;
 #define interrupt(x) void __attribute__((interrupt (x)))
 interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
@@ -764,16 +772,28 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 
 		/// TODO ACK Disabled until project specification is completed
 		// Check if it's a ACK message
-		if( getreg(CC2520_RXFIFOCNT) > CC2520_ACK_LENGTH ){
-			RADIO_STATE_SET(RX_OK);
-		}
-		else{
+		rxfifo_length = getreg(CC2520_RXFIFOCNT);
+		if ( rxfifo_length == CC2520_ACK_LENGTH ){
+//				CC2520_READ_FIFO_BUF(ack_packet, CC2520_ACK_LENGTH);
+			// if(ack_packet[1] & 2) // it's ack
+			// TODO check to be sure that is ACK packet FRM.CTRL = 2
+			// If radio is TXing, then it's a ack message
 			if(is_radio_txing(cc2520_radio_params.param[RADIO_STATE])){
 				RADIO_STATE_SET(TX_ACKED); // ACK packet received, transmission ACKED
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
 				UNET_RADIO.set(TX_RETRIES, 0);
+				RADIO_STATE_SET(TX_OK); // unet_core handle
 			}
 			flushrx();
+			cc2520_rx_enable();
+			RADIO_STATE_RESET(RX_OK);
+		}
+		else if( rxfifo_length > CC2520_ACK_LENGTH ){
+			RADIO_STATE_SET(RX_OK);
+		}
+		else{
+			flushrx();
+			cc2520_rx_enable();
 			RADIO_STATE_RESET(RX_OK);
 		}
 
