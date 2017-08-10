@@ -2,7 +2,7 @@
 // \brief  Log mote statistics in csv file
 // \author Fabrício Negrisolo de Godoi
 // \date   06-04-2017
-//
+// /// TODO UPDATE THIS INFO
 // \details
 //   This script is performed in 4 steps:
 // 1st - Definition of used variables and function, in which:
@@ -36,24 +36,40 @@
 //  Simulation parameters
 // 
 // TIMEOUT must be the first thing to set
-TIMEOUT(3600000); // 60 minutes timeout
+TIMEOUT(86400000); // 24 hours timeout
 
-//Set simulation parameters
-var sim_time = 10*60*1000; // Simulation time h*m*s*ms
+// Set simulation parameters
+//var sim_time = 10*60*1000; // Simulation time h*m*s*ms
 
-//This will store all motes information (simplify the script)
+// This will store all motes information (simplify the script)
 var motes = sim.getMotes();
 
 // This delay is intended to clear the network buffer (hop/hop)
-var buffer_clean_delay = 1000; // wait one second to clear the buffer
+var buffer_clean_delay = 10000; // wait ten seconds to ensure that the buffer is clear
+
+// This delay is used to ensure that the previous simulation run has ended
+var delay_between_runs = 2000; // wait two seconds to run another simulation
+
+//Number of packets by each mote
+var bm_packets = 100;	// value should not exceed 127
+
+// Transmission start interval in ms
+var bm_interval = 4000; //default
+
+//Transmission interval decrease value rate is ms
+var bm_interval_dec = 500;
+
+// Minimum interval value acceptable in ms
+var bm_min_interval = 1000;
 
 // This is used to create the output log
 var os_name = "none";
 var os_net  = "none";
-var net_pkts= "null"
+var net_pkts= "null";
 var server_id = 0; // default
 var server_mote = null;
 var sim_title = sim.getTitle();
+var log_path = "/home/user/logs";
 
 // Statistcs variables
 var motes_statistics = "UNET_NodeStat";
@@ -157,7 +173,7 @@ function readVariable(_mote, _name, _bytes){
 var today = new Date().YYYYMMDDHHMM();
 
 // Log the route used in the simulation
-var log_route = "timestamp;id;route\n";
+var log_route = "timestamp;from;to\n";
 
 //Creater header (this must be sync with the struct)
 var header = "#;" +
@@ -178,21 +194,14 @@ var header = "#;" +
 		"chkerr;" +
 		"overbuf;" +
 		"dropped;" +
+		"corrupted;" +
 		"radiotx;" +
 		"radiorx;" +
 		"radiocol;" +
 		"radionack" +
 		"\n";
 
-// Benchmark output control commands
-// uint8_t start:1;     //<! Start communication
-// uint8_t stop:1;      //<! Stop communication
-// uint8_t stats:1;     //<! Enable/Disable statistics
-// uint8_t reset:1;     //<! Reset the statistics
-// uint8_t shutdown:1;  //<! Disable any kind of network (not implmentend)
-// uint8_t get:1;       //<! Get parameter (not implemented)
-// uint8_t set:1;       //<! Set parameter (not implemented)
-// uint8_t unused:1;
+// Benchmark output control commands, check C source code for more information
 var BMC_START    = 1;
 var BMC_STOP     = 1<<1;
 var BMC_STATS    = 1<<2;
@@ -200,14 +209,17 @@ var BMC_RESET    = 1<<3;
 var BMC_SHUTDOWN = 1<<4;
 var BMC_GET      = 1<<5;
 var BMC_SET      = 1<<6;
+/// Note: last bit cannot be used with Javascript in a easy method
+/// since 0x80 would transform the number in negative, the data
+/// structure from js would transform it on a data larger than a byte
+/// performing error when send by "writeArray"
 
 var BMC_COMMAND = [];
-var BCM_DATA    = (motes.length-1) & 0xFF;
 var BCM_END     = 0x0a; // Ends with '\n'
 
 //############################################################
 //
-//   Simulation initialization
+//   Parameters gathering
 //
 
 // Get some simulation information
@@ -215,17 +227,20 @@ YIELD_THEN_WAIT_UNTIL(msg.startsWith("server:"));
 server_id = id;
 var server_mote = mote;
 var string = msg.replace("server: ","").split(" ");
-os_name = string[0]; os_net = string[1]; longest_path = string[2];
+//var string = "brtos unet 5".split(" ");
+os_name = string[0]; os_net = string[1]; //bm_nofmsgs = string[2];
 log.log("==========================================\n");
 log.log("Simulation Parameters\n");
 log.log("Server ID: "+server_id+"\n");
 log.log("Server OS: "+os_name+"\n");
 log.log("OS Network: "+os_net+"\n");
-log.log("Longest path (Hops): "+longest_path+"\n");
-log.log("Minimum transmission period Tm = H * 10ms: "+(longest_path*10)+"ms\n");
-log.log("Delay between packets: "+(longest_path*10*(motes.length-1))+"ms\n");
-log.log("Total packets expected per client: "+Math.round(sim_time/(longest_path*10*(motes.length-1)))+"\n");
+log.log("Packts/mote: "+bm_packets+"\n");
+log.log("Transmission interval: "+bm_interval+"ms\n");
 log.log("==========================================\n");
+
+// Create output folder
+var output_folder = log_path+"/"+os_name+"/"+os_net+"_"+sim_title+"_"+today;
+if(!new File(output_folder).exists())  new File(output_folder).mkdirs();
 
 //Benchmark input control commands
 //When received this message from every client node, the simulation can start 
@@ -235,18 +250,20 @@ var BM_WAIT_CLIENT = "BMCC_START";
 //Wait system wake up
 GENERATE_MSG(1000, "sim:sleep");
 YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
-// First, send the command
-BMC_COMMAND = [(0xFF & BMC_SET), ((motes.length-1) & 0xFF), BCM_END];
+// First, send the command to ensure at least a initial configure
+BMC_COMMAND = [(0xFF & BMC_STOP | BMC_SET),// Command
+               ((motes.length-1) & 0xFF),  // Number of motes
+               (bm_packets & 0x7F),        // Number of packets
+               ((bm_interval>>7)&0x7F),    // Interval MSB
+               (bm_interval&0x7F),         // Interval LSB
+               BCM_END];                   // End
 for(var k = 0; k < motes.length; k++){
 	motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
-
 //############################################################
 // 
-//  Simulation start
+//  Network stabilization
 // 
-
-// Network stabilization
 log.log("Waiting network stabilization ["+(motes.length-1)+"] ...\n");
 
 //Wait for every client mote to get ready
@@ -254,11 +271,11 @@ var load = new loading();
 load.start();
 var started_clients = 0;
 do{
-	YIELD_THEN_WAIT_UNTIL(msg.equals(BM_WAIT_CLIENT) || msg.startsWith("#L "));
+	YIELD_THEN_WAIT_UNTIL(msg.contains(BM_WAIT_CLIENT) || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
 		msg = msg.split(";")[0];
 		if(msg.split(" ")[2].equals("1"))
-			log_route += tick2time(time)+";"+id+";"+msg+"\n";
+			log_route += tick2time(time)+";"+id+";"+msg.split(" ")[1]+"\n";
 	}
 	else{
 		started_clients++;
@@ -278,12 +295,45 @@ do{
 	if(msg.startsWith("#L ")){
 		msg = msg.split(";")[0];
 		if(msg.split(" ")[2].equals("1"))
-			log_route += tick2time(time)+";"+id+";"+msg+"\n";
+			log_route += tick2time(time)+";"+id+";"+msg.split(" ")[1]+"\n";
 	}
 }while(!msg.equals("sim:sleep"));
+log.log("Stabilization total time: "+tick2time(time)+"\n");
 
-log.log("Stabilization time: "+tick2time(time)+"\n");
-log.log("Simulation expected to finish at: "+tick2time(time+sim_time*1000)+"\n");
+
+//############################################################
+//
+//  Simulation start
+//
+
+
+// Caculate total simulation time
+total_simulation_time = 0;
+for(var k = bm_interval; k >= bm_min_interval; k-=bm_interval_dec){
+	total_simulation_time += bm_interval*bm_packets + buffer_clean_delay + delay_between_runs;
+}
+log.log("Total simulation time expected: "+ms2time(total_simulation_time)+"\n");
+log.log("Simulation expected to finish at: "+tick2time(time+total_simulation_time*1000)+"\n");
+
+//Create a report file with final results
+var report = new FileWriter(output_folder+"/report.csv");
+report.write("Interval (ms);Success (%)\n");
+
+do{
+
+// Configure all motes with correctly interval and network size
+BMC_COMMAND = [(0xFF & BMC_STOP | BMC_SET | BMC_RESET),  // Command
+               ((motes.length-1) & 0xFF),                // Number of motes
+               (bm_packets & 0x7F),                      // Number of packets
+               ((bm_interval>>7)&0x7F),                  // Interval MSB
+               (bm_interval&0x7F),                       // Interval LSB
+               BCM_END];                                 // End
+for(var k = 0; k < motes.length; k++){
+	motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
+}
+
+log.log("==========================================\n");
+log.log("Simulation expected to finish at: "+tick2time(time+bm_interval*bm_packets*1000)+"\n");
 
 //Start all motes, server first
 BMC_COMMAND = [(0xFF & BMC_START|BMC_STATS), BCM_END];
@@ -292,19 +342,21 @@ for(var k = 0; k < motes.length; k++){
 	if(motes[k].getID()!=server_id)
 		motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
-
-log.log("Simulation running...\n");
+log.log("Simulation running with interval "+bm_interval+"...\n");
 
 // Wait simulation time
-GENERATE_MSG(sim_time, "sim:sleep");
+var waiting = motes.length-1;
+var sim_started = time;
 do{
-	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
+	YIELD_THEN_WAIT_UNTIL(msg.contains("BMCD_DONE") || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
 		msg = msg.split(";")[0];
 		if(msg.split(" ")[2].equals("1"))
-			log_route += tick2time(time)+";"+id+";"+msg+"\n";
+			log_route += tick2time(time)+";"+id+";"+msg.split(" ")[1]+"\n";
 	}
-}while(!msg.equals("sim:sleep"));
+	else if(msg.contains("BMCD_DONE")) waiting--;
+}while(waiting > 0);
+log.log("All motes done sending messages...\n");
 
 // Stop all motes messages, but continue the statistics
 BMC_COMMAND = [(0xFF & BMC_STOP|BMC_STATS), BCM_END];
@@ -317,13 +369,12 @@ log.log("Time: "+tick2time(time)+"\n");
 log.log("Waiting network buffer...\n");
 log.log("Buffer expected to be clean at: "+tick2time(time+buffer_clean_delay*1000)+"\n");
 GENERATE_MSG(buffer_clean_delay, "sim:sleep");
-//YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep"));
 do{
 	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
 		msg = msg.split(";")[0];
 		if(msg.split(" ")[2].equals("1"))
-			log_route += tick2time(time)+";"+id+";"+msg+"\n";
+			log_route += tick2time(time)+";"+id+";"+msg.split(" ")[1]+"\n";
 	}
 }while(!msg.equals("sim:sleep"));
 
@@ -332,11 +383,6 @@ BMC_COMMAND = [(0xFF & BMC_STOP), BCM_END];
 for(var k = 0; k < motes.length; k++){
 	motes[k].getInterfaces().get("Serial").writeArray(BMC_COMMAND);
 }
-
-//
-//  Simulation ended
-//
-//############################################################
 
 
 //############################################################
@@ -347,29 +393,32 @@ for(var k = 0; k < motes.length; k++){
 log.log("Retrieving data from motes ["+motes.length+"] ...\n");
 
 // Create file
-var output = new FileWriter("/home/user/logs/log_"+sim_title+"_"+os_name+"_"+os_net+"_"+today+".csv");
+var output = new FileWriter(output_folder+"/"+bm_interval+".csv");
 output.write(header);
 
 // Reading memory
-log.log("Reading memory:\n");
+log.log("Reading memory...\n");
 
 //bm_pkts_recv
 pkts_per_client = readVariable(server_mote, server_collection, 2).split(";");
 
+var total_pkts_rcvd = 0;
+var total_pkts_sent = 0;
+
 // Select mote
-var load = new loading();
-load.start();
 for(var k = 0; k < motes.length; k++){
 	output.write(""+motes[k].getID()+";");
+	stats_value = readVariable(motes[k],motes_statistics,2);
 	if(motes[k].getID() == server_id)
 		output.write("0;");
-	else
+	else{
 		output.write(pkts_per_client[motes[k].getID()]+";");
-	output.write(readVariable(motes[k],motes_statistics,2));
+		total_pkts_rcvd += parseInt(pkts_per_client[motes[k].getID()]);
+		total_pkts_sent += parseInt(stats_value.split(";")[0]);
+	}
+	output.write(stats_value);
 	output.write("\n");
-	load.load((k+1)/motes.length);
 }
-load.end();
 
 //Ouput script total sum (last line), skipping first column
 output.write("SUM");
@@ -384,16 +433,48 @@ for(var i=0; i < number_of_columns; i++){
 output.write("\n");
 
 output.write("\n\n\nNetwork path creation time;"+tick2time(startup_time)+"\n");
-output.write("Simulation total time;"+tick2time(time)+"\n");
-output.write("Defined sim time;"+ms2time(sim_time)+"\n");
-output.write("Defined network settle time;"+ms2time(buffer_clean_delay)+"\n");
+output.write("Simulation total time;"+tick2time(time - sim_started)+"\n");
+//output.write("Defined sim time;"+ms2time(sim_time)+"\n");
+//output.write("Defined network settle time;"+ms2time(buffer_clean_delay)+"\n");
 output.write("Number of motes;"+motes.length+"\n");
-output.write("Defined server pkt/s;"+net_pkts+"\n");
+output.write("Network interval;"+bm_interval+"\n");
+output.write("Packets/mote;"+bm_packets+"\n");
 output.write("Network;"+os_net+"\n");
+output.write("OS;"+os_name+"\n");
 output.write("Success rate;=100*B"+(motes.length+2)+"/C"+(motes.length+2)+"\n");
 output.write("\n\nRoute:\n"+log_route+"\n");
 
 output.close(); /// Save file
+
+report.write(bm_interval+";"+(total_pkts_rcvd/total_pkts_sent)*100+"\n");
+log.log("Success rate: "+((total_pkts_rcvd/total_pkts_sent)*100)+"%\n");
+//############################################################
+//
+//  Update parameters for next run
+//
+
+
+// Wait a minimum time between simulations
+GENERATE_MSG(delay_between_runs, "sim:sleep");
+do{
+	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
+	if(msg.startsWith("#L ")){
+		msg = msg.split(";")[0];
+		if(msg.split(" ")[2].equals("1"))
+			log_route += tick2time(time)+";"+id+";"+msg.split(" ")[1]+"\n";
+	}
+}while(!msg.equals("sim:sleep"));
+
+
+// Update interval
+bm_interval -= bm_interval_dec;
+}while(bm_interval >= bm_min_interval);
+report.close();
+
+//
+//  Simulation ended
+//
+//############################################################
 
 
 //############################################################
