@@ -18,9 +18,17 @@
                                 /* USART0 Tx ready? */
 #define SPI_WAITFOREOTx() while ((UCB0STAT & UCBUSY) != 0)
                                 /* USART0 Rx ready? */
-#define SPI_WAITFOREORx() while ((UCB0IFG & UCRXIFG) == 0)
+//#define SPI_WAITFOREORx() BUSYWAIT_UNTIL(!((UCB0IFG & UCRXIFG) == 0), 4096)
+// MSP430@16MHz ~ 20 =~ 6us, enough to read a byte from SPI
+#define SPI_WAITFOREORx() 										\
+	do{															\
+		uint16_t max_time = 20;                              \
+		while (((UCB0IFG & UCRXIFG) == 0) && (max_time-- > 0)); \
+	}while(0)
                                 /* USART0 Tx buffer ready? */
-#define SPI_WAITFORTxREADY() while ((UCB0IFG & UCTXIFG) == 0)
+#define SPI_WAITFORTxREADY()  while ((UCB0IFG & UCTXIFG) == 0)
+	//BUSYWAIT_UNTIL(!((UCB0IFG & UCTXIFG) == 0), 2)
+
 /*                                 /\* USART0 Tx ready? *\/ */
 /* #define SPI_WAITFOREOTx() while (!(UCB0IFG & UCRXIFG)) */
 /*                                 /\* USART0 Rx ready? *\/ */
@@ -106,7 +114,8 @@ extern unsigned char spi_busy;
 
 void spi_init(void);
 void spi_write(char *a, short l);
-void spi_read(char *a, short l);
+//void spi_read(char *a, short l);
+//uint8_t spi_read(uint8_t *a, uint8_t l);
 //***********************************
 
 #endif /* SPI_H_ */
