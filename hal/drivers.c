@@ -73,7 +73,7 @@ uint8_t gets(uint8_t *string, ostick_t time_wait){
 	uint8_t i=0;
 	if(OSSemPend(StringEvent,time_wait) == OK){
 		do{
-			if(getchar(&string[i],NO_TIMEOUT) == EXIT_BY_NO_ENTRY_AVAILABLE) break;
+			if(getchar(&string[i],NO_TIMEOUT) != READ_BUFFER_OK) return 0;
 		}while(string[i++] != '\n');
 	}
 	return i;
