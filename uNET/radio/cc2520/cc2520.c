@@ -2,6 +2,17 @@
  * \author Fabricio Negrisolo de Godoi
  * \date 17-03-2017
  * \brief Driver for CC2520 radio from Texas Instruments
+ *
+ * \details
+ *         Cooja PINOUTs
+ *         MCU         CC2520
+ *         P1.5  <---   FIFO
+ *         P1.6  <---   FIFOP  (Interruption)
+ *         P1.7  <---   CCA
+ *         P2.0  <---   SFD
+ *         P3.0  --->   CSn
+ *         P4.3  --->   WAKE   (VREG)
+ *         P4.4  --->   RESET
  */
 
 #include "cc2520.h"
@@ -17,6 +28,7 @@
 
 static uint32_t (*_isr_handler)(void);
 static radio_params_t cc2520_radio_params;
+volatile unsigned char cc2520_waiting_ack;//todo change to static
 
 static uint8_t receive_on;
 static int channel;
@@ -39,7 +51,7 @@ volatile unsigned char pkt_len;
 #define CC2520_ACK_LENGTH 6	// [ LEN FRC.L FRC.M SQN FCH.L FCH.M ] ieee802.15.4
 #define FOOTER1_CRC_OK      0x80
 #define FOOTER1_CORRELATION 0x7f
-
+#define CC2520_MAX_PACKET_LENGTH 128
 
 #ifndef CC2520_CONF_AUTOACK
 #define CC2520_CONF_AUTOACK              1
@@ -94,36 +106,38 @@ static unsigned int status(void) {
 }
 
 static void flushrx(void) {
-  uint8_t dummy;
-  (void) dummy;
-  CC2520_READ_FIFO_BYTE(dummy);
-  CC2520_STROBE(CC2520_INS_SFLUSHRX);
-  CC2520_STROBE(CC2520_INS_SFLUSHRX);
+	uint8_t dummy;
+	(void) dummy;
+	CC2520_READ_FIFO_BYTE(dummy);
+	CC2520_STROBE(CC2520_INS_SFLUSHRX);
+	CC2520_STROBE(CC2520_INS_SFLUSHRX);
 }
 
 static void flushtx(void) {
-  strobe(CC2520_INS_SFLUSHTX);
+	CC2520_STROBE(CC2520_INS_SFLUSHTX);
+	CC2520_STROBE(CC2520_INS_SFLUSHTX);
+	// They are duplicated to ensure that the buffer is clear
+	// in Cooja simulator some times the buffer aren't clear
+	// inducing to TX buffer to be wrapped
 }
-//static void
-//on(void)
-//{
-//  CC2520_ENABLE_FIFOP_INT();
-//  strobe(CC2520_INS_SRXON);
-//  BUSYWAIT_UNTIL(status() & (BV(CC2520_XOSC16M_STABLE)), RTIMER_SECOND / 100);
-//}
-//static void
-//off(void)
-//{
-//  /* Wait for transmission to end before turning radio off. */
-//  BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
-//
-//  strobe(CC2520_INS_SRFOFF);
-//  CC2520_DISABLE_FIFOP_INT();
-//
-//  if(!CC2520_FIFOP_IS_1) {
-//    flushrx();
-//  }
-//}
+static void cc2520_on(void)
+{
+  CC2520_ENABLE_FIFOP_INT();
+  strobe(CC2520_INS_SRXON);
+  BUSYWAIT_UNTIL(status() & (BV(CC2520_XOSC16M_STABLE)), RTIMER_SECOND / 100);
+}
+static void cc2520_off(void)
+{
+  /* Wait for transmission to end before turning radio off. */
+  BUSYWAIT_UNTIL(!(status() & BV(CC2520_TX_ACTIVE)), RTIMER_SECOND / 10);
+
+  strobe(CC2520_INS_SRFOFF);
+  CC2520_DISABLE_FIFOP_INT();
+
+  if(!CC2520_FIFOP_IS_1) {
+    flushrx();
+  }
+}
 
 void clock_delay(unsigned int i) {
 	while (i--) {
@@ -199,6 +213,7 @@ void cc2520_set_tx_power(uint8_t pwr) {
 }
 /*---------------------------------------------------------------------------*/
 static void cc2520_rx_disable(void) {
+//	strobe(CC2520_INS_SRFOFF); // this strobe turn off the radio
 	// need to set the RXENABLE0 register
 	/* Disable packet reception */
 	setreg(CC2520_RXENABLE0, 0x00); //  Does not abort ongoing TX/RX,
@@ -396,7 +411,8 @@ int cc2520_init(const void *isr_handler) {
 
 	_isr_handler = isr_handler;
 
-	CC2520_SPI_PORT_INIT();
+	// This is performed in the drivers
+//	CC2520_SPI_PORT_INIT();
 
 //	int s = splhigh();
 
@@ -515,13 +531,13 @@ int cc2520_init(const void *isr_handler) {
 	cc2520_set_channel(CHANNEL_INIT_VALUE);
 
 
+	// Clear all buffers
 	flushtx();
 	flushrx();
 
-
-
 	// Enable radio in reception mode
-    	strobe(CC2520_INS_SRXON);
+    strobe(CC2520_INS_SRXON);
+    flushrx(); // See errata bug 1
 	BUSYWAIT_UNTIL(status() & (BV(CC2520_XOSC16M_STABLE)), RTIMER_SECOND / 100);
 	CC2520_ENABLE_FIFOP_INT();
 
@@ -538,8 +554,6 @@ int cc2520_prepare(const void *data, unsigned short len) {
 	CC2520_PRINTF("cc2520: sending %d bytes\n", len);
 
 	/* Write packet to TX FIFO. */
-	flushtx();
-
 	CC2520_WRITE_FIFO_BUF(&total_len, 1);
 	CC2520_WRITE_FIFO_BUF(data, len);
 
@@ -570,6 +584,7 @@ int cc2520_transmit(void) {
 #if WITH_SEND_CCA
 	/// TODO get warning "Turning off radio while transmitting, ending packet prematurely" from Cooja
 	strobe(CC2520_INS_SRXON); // TX is aborted by SRXON, STXON, SROFF
+	flushrx(); // See errata bug number one
 	BUSYWAIT_UNTIL(status() & BV(CC2520_RSSI_VALID), RTIMER_SECOND / 10);
 //	while(!(status() & BV(CC2520_RSSI_VALID)));
 	strobe(CC2520_INS_STXONCCA); // Start transmission
@@ -615,6 +630,7 @@ int cc2520_transmit(void) {
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_WAIT);
 //				radio_tx_acked(FALSE);
 				CC2520_PRINTF("cc2520: TX WAIT\n"); // waiting ack
+				cc2520_waiting_ack = true;
 				return RADIO_TX_WAIT;
 			} else {
 				// Broadcast message, no ack needed
@@ -649,6 +665,8 @@ int cc2520_write(const void *buf, uint16_t len) {
 	if (((len + FOOTER_LEN) <= 0) || ((len + FOOTER_LEN) > 127)) {
 		return -1;
 	}
+	// Flush here to give the radio some more time to finish flushing
+	flushtx();
 
 	uint8_t *frame_control = (uint8_t *) buf;
 	CC2520_PRINTF("cc2520: write: ");
@@ -665,12 +683,13 @@ int cc2520_write(const void *buf, uint16_t len) {
 		radio_tx_ack(TRUE);
 		radio_tx_acked(FALSE);
 	}
-	radio_txing(TRUE);
+//	radio_txing(TRUE);
 
 	if (cc2520_prepare(buf, len)) return ret;
 
 	CC2520_INTERRUPT_ENABLE_CLR();
-	if((ret = cc2520_transmit()) != RADIO_TX_WAIT) _isr_handler();
+//	if((ret = cc2520_transmit()) != RADIO_TX_WAIT) _isr_handler();
+	ret = cc2520_transmit();
 	CC2520_INTERRUPT_ENABLE_SET();
 
 	return ret;
@@ -689,14 +708,13 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 	if (!CC2520_FIFOP_IS_1) {
 		return 0;
 	}
-
 	CC2520_READ_FIFO_BYTE(len);
+//	len = getreg(CC2520_RXFIFOCNT);
 	if (len > FOOTER_LEN && len < buf_len) { // not shorter, neither longer
-
-		CC2520_READ_FIFO_BUF(buf, len - FOOTER_LEN);
+		CC2520_READ_FIFO_BUF(buf, len - FOOTER_LEN); /// TODO stuck HERE! why?
 		CC2520_READ_FIFO_BUF(footer, FOOTER_LEN);
 		len = len - FOOTER_LEN;
-
+		
 		/// Print PKT
 		CC2520_PRINTF("cc2520: pkt: ");
 		CC2520_PRINTF_PACKET(buf,len);
@@ -716,7 +734,6 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 		cc2520_radio_params.st_radio_param.crc = (footer[1] & FOOTER1_CRC_OK) >> 7; // get the CRC bit
 		cc2520_radio_params.st_radio_param.last_rssi = buf[0];
 		cc2520_radio_params.st_radio_param.last_lqi = buf[1] & FOOTER1_CORRELATION;
-
 	} else {
 		/* Oops, out of synch */
 		flushrx();
@@ -737,10 +754,8 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 }
 /*---------------------------------------------------------------------------*/
 int cc2520_read(const void *buf, uint16_t *len) {
-	/* Disable packet reception */
-	CC2520_DISABLE_FIFOP_INT();
-	cc2520_rx_disable();
-	*len = cc2520_get_rxfifo((uint8_t *) buf, 128);
+	*len = cc2520_get_rxfifo((uint8_t *) buf, CC2520_MAX_PACKET_LENGTH);
+	/* Enable radio to RX, since it was disabled in interruption*/
 	cc2520_rx_enable();
 	CC2520_ENABLE_FIFOP_INT();
 	return 0;
@@ -768,17 +783,20 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 		CC2520_CLEAR_FIFOP_INT();
 
 		// Disable radio (BRTOS)
+		CC2520_DISABLE_FIFOP_INT();
 		cc2520_rx_disable(); // avoid overflowing rx buffer
+		// TODO this should not be disabled here, because the OS may not read the packet in time
+		//      so if this packet is forget is OS fault, not driver problem
 
-		/// TODO ACK Disabled until project specification is completed
 		// Check if it's a ACK message
 		rxfifo_length = getreg(CC2520_RXFIFOCNT);
+		// Probably it's an ACK message, if isn't it's just garbage
 		if ( rxfifo_length == CC2520_ACK_LENGTH ){
 //				CC2520_READ_FIFO_BUF(ack_packet, CC2520_ACK_LENGTH);
 			// if(ack_packet[1] & 2) // it's ack
 			// TODO check to be sure that is ACK packet FRM.CTRL = 2
 			// If radio is TXing, then it's a ack message
-			if(is_radio_txing(cc2520_radio_params.param[RADIO_STATE])){
+			if(cc2520_waiting_ack == true){ // if doesn't reach here, ack is lost, don't wait
 				RADIO_STATE_SET(TX_ACKED); // ACK packet received, transmission ACKED
 				UNET_RADIO.set(TX_STATUS, RADIO_TX_ERR_NONE);
 				UNET_RADIO.set(TX_RETRIES, 0);
@@ -786,17 +804,27 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 			}
 			flushrx();
 			cc2520_rx_enable();
+			CC2520_ENABLE_FIFOP_INT();
 			RADIO_STATE_RESET(RX_OK);
 		}
-		else if( rxfifo_length > CC2520_ACK_LENGTH ){
+		// Just received some information
+		else if( rxfifo_length > CC2520_ACK_LENGTH && rxfifo_length < CC2520_MAX_PACKET_LENGTH){
 			RADIO_STATE_SET(RX_OK);
+			// Don't enable RX, since it'll be read by OS
 		}
+		// Not a valid information
 		else{
 			flushrx();
 			cc2520_rx_enable();
+			CC2520_ENABLE_FIFOP_INT();
 			RADIO_STATE_RESET(RX_OK);
 		}
 
+		/*
+		 * Even if the ack message was expected, since some other
+		 * packet arrived, the ack message will not
+		 */
+		cc2520_waiting_ack = false;
 
 		// Processa o unet_core_isr_handler
 		_isr_handler();
