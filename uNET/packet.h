@@ -66,7 +66,7 @@ enum {UNET_VERBOSE_PHY = 0, UNET_VERBOSE_MAC, UNET_VERBOSE_LINK, UNET_VERBOSE_RO
 #define REQUIRE_FOREVER(x)			REQUIRE(x, while(1){})
 #define REQUIRE_OR_EXIT(x, exit)	REQUIRE(x, goto exit;)
 #else
-#define REQUIRE(x, dothis)			if(!(x)) { PRINTF("Invalid value at %s:%d\r\n", __FILE__, __LINE__); dothis}
+#define REQUIRE(x, dothis)			if(!(x)) { extern char debug_rx_depth; PRINTF("Invalid value %d at %s:%d\r\n",debug_rx_depth, __FILE__, __LINE__); dothis}
 #define REQUIRE_FOREVER(x)			REQUIRE(x, while(1){DelayTask(1000);})
 #define REQUIRE_OR_EXIT(x, exit)	REQUIRE(x, goto exit;)
 #endif
@@ -184,6 +184,8 @@ void     packet_release_up(void);
 packet_state_t  packet_state_down(void);
 packet_state_t  packet_state_up(void);
 void     packet_print(uint8_t *pkt, uint8_t len);
+uint16_t packet_get_source_addr16(packet_t *pkt);
+uint16_t packet_get_dest_addr16(packet_t *pkt);
 
 
 #endif /* UNET_PACKET_H_ */

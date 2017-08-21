@@ -722,7 +722,7 @@ void UNET_Router_Down_Task(void)
 		/* wait ack tx */
 		wait_again:
 		run_trickle(&timer_down);
-
+		
 		if(OSSemPend(Router_Down_Route_Request,timer_down.t) == TIMEOUT)
 		{
 			/* if no packet sent down after ROUTER_ADV_PERIOD_MS ms, send a router adv
@@ -767,7 +767,28 @@ void UNET_Router_Down_Task(void)
 				 * pois vale a pena continuar tentando, j� que o link est� funcionando. */
 				++routing_retries;
 
-				r->state = PACKET_WAITING_ACK;
+				/**
+				 * Testar se o nodo pai foi atualizado entre transmissoes,
+				 * pois se a rota foi atualizada, o pacote precisa ser atualizado tambem.
+				 * Caso não tenha essa atualizacao de rota, a rede pode entrar em Deadlock
+				 *
+				 * Explicacao do Deadlock:
+				 * 		 Dado rádios X e Y e as seguintes premissas:
+				 * 		 1 - X tenta enviar para Y;
+				 * 		 2 - Y tenta enviar para X;
+				 * 		 3 - As transmissoes ocorrem em tempos curto suficiente
+				 * 		     para que os dois ocupem o buffer de saída ao mesmo tempo
+				 * 		 Então:
+				 * 		 X e Y ficam presos aguardando o buffer de saida ficar livre,
+				 * 		 para que dessa forma seja possivel enviar o ACK para seus
+				 * 		 respectivos. Entrentanto, como o buffer de ambos estão ocupados
+				 * 		 com a transmissao, o ACK nao e enviado.
+				 */
+				if(packet_get_dest_addr16(r) != link_get_parent_addr16()){
+					// Route has changed between transmissions, update the packet next hop
+					printf("rup: was %d now %d\n",packet_get_dest_addr16(r), link_get_parent_addr16());
+					unet_update_packet_down_dest();
+				}
 
 				PRINTF_ROUTER(1,"TX DOWN, WAIT ACK, to %u, SN %d \r\n",
 						BYTESTOSHORT(r->info[PKTINFO_DEST16H],r->info[PKTINFO_DEST16L]),

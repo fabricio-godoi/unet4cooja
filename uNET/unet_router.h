@@ -46,6 +46,7 @@ uint8_t  unet_packet_input(packet_t *p);
 uint8_t  unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_retry);
 uint8_t  unet_packet_up_sendto(addr64_t * dest_addr64, uint8_t payload_len);
 uint8_t  unet_router_down(void);
+void     unet_update_packet_down_dest(void);
 uint8_t  unet_packet_down_send(uint8_t payload_len);
 uint8_t  unet_router_adv(void);
 void* 	 unet_rtable_up_get(void);

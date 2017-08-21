@@ -135,5 +135,7 @@ uint16_t   link_neighbor_table_addr16_get(uint8_t idx);
 uint8_t    link_packet_is_duplicated(uint8_t *src_addr, uint8_t seq_num);
 void       link_seqnum_reset(uint16_t src_addr);
 uint8_t    link_is_symmetric_parent(void);
+void       link_check_parent_update(void);
+uint16_t   link_get_parent_addr16(void);
 
 #endif /* UNET_LINK_H_ */

@@ -64,6 +64,8 @@ void packet_release_down(void)
 	OSEnterCritical();
 	packet_down.state = PACKET_IDLE;
 	OSExitCritical();
+	// Check if there is new parent in the route
+	link_check_parent_update();
 }
 /*--------------------------------------------------------------------------------------------*/
 uint8_t packet_acquire_up(void)
@@ -107,5 +109,17 @@ packet_state_t packet_state_up(void)
 {
 	extern packet_t packet_up;
 	return packet_up.state;
+}
+/*--------------------------------------------------------------------------------------------*/
+uint16_t packet_get_source_addr16(packet_t *pkt){
+	uint16_t addr16;
+	addr16 = (pkt->info[PKTINFO_SRC16H]<<8) + pkt->info[PKTINFO_SRC16L];
+	return addr16;
+
+}
+uint16_t packet_get_dest_addr16(packet_t *pkt){
+	uint16_t addr16;
+	addr16 = (pkt->info[PKTINFO_DEST16H]<<8) + pkt->info[PKTINFO_DEST16L];
+	return addr16;
 }
 /*--------------------------------------------------------------------------------------------*/

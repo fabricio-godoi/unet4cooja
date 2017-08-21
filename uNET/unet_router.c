@@ -275,6 +275,19 @@ uint8_t unet_router_down(void)
     return TRUE;
 }
 /*--------------------------------------------------------------------------------------------*/
+void unet_update_packet_down_dest(void){
+	uint8_t p_idx;
+	uint16_t next_hop_addr16;
+    p_idx = node_data_get(NODE_PARENTINDEX);
+    if (p_idx == NO_PARENT) return; // no parent to be updated
+
+    /* set next hop */
+    next_hop_addr16 = link_neighbor_table_addr16_get(p_idx);
+    ieee802154_dest16_set(&packet_down, next_hop_addr16);
+    packet_down.packet[MAC_DEST_16] = packet_info_get(&packet_down,PKTINFO_DEST16L);
+    packet_down.packet[MAC_DEST_16+1] = packet_info_get(&packet_down,PKTINFO_DEST16H);
+}
+/*--------------------------------------------------------------------------------------------*/
 uint8_t unet_packet_down_send(uint8_t payload_len)
 {
 	extern packet_t packet_down;
@@ -356,10 +369,12 @@ uint8_t unet_router_adv(void)
 //void RadioReset(void);
 //void IncUNET_NodeStat_radioresets(void);
 volatile ostick_t tick, ticked;
+volatile int radio_status = RADIO_TX_WAIT;
 uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_retry)
 {
 	uint8_t state = 0;
 	uint8_t res = PACKET_SEND_ERR;
+//	int radio_status = RADIO_TX_WAIT;
 
 	acquireRadio();
 
@@ -368,47 +383,65 @@ uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_ret
 			UNET_RADIO.get(RADIO_STATUS,&state);
 			PRINTF_PHY(1,"RADIO STATE: %u \r\n", state);
 
-			UNET_RADIO.send(&(pkt->packet[MAC_FRAME_CTRL]), pkt->info[PKTINFO_SIZE]);
-//			ticked = (ostick_t) OSGetTickCount();
-			if(OSSemPend(Radio_TX_Event,TX_TIMEOUT) != TIMEOUT)
-			{
+			radio_status = UNET_RADIO.send(&(pkt->packet[MAC_FRAME_CTRL]), pkt->info[PKTINFO_SIZE]);
+			// TODO set this as driver error in err list
+			if(radio_status == -1){
+				// Driver fail to put packet in radio
+				break;
+			}
+			else if(radio_status == RADIO_TX_ERR_NONE){
+				// Packet TX successful, ACK not needed
 				NODESTAT_UPDATE(txed);
-				UNET_RADIO.get(RADIO_STATE,&state);
-				// From; to; msg type; acked?
-//				PRINTD("f: %d; t: %d; %s: %s\n",pkt->packet[MAC_SRC_16],pkt->packet[MAC_DEST_16],
-//						pkt->packet[MAC_FRAME_CTRL] == 0x41?"broadcast":"unicast",
-//						is_radio_tx_acked(state)?"acked":"nacked");
-				if (is_radio_tx_acked(state))
+//				radio_tx_acked(TRUE);
+				res =  PACKET_SEND_OK;
+				break;
+			}
+			else if(radio_status == RADIO_TX_WAIT){
+				// Packet TX successful, will wait ACK
+				if(OSSemPend(Radio_TX_Event,TX_TIMEOUT) != TIMEOUT)
 				{
-					radio_tx_acked(FALSE);
-					res =  PACKET_SEND_OK;
-					break;
-				}else
+					NODESTAT_UPDATE(txed);
+					UNET_RADIO.get(RADIO_STATE,&state);
+					// From; to; msg type; acked?
+	//				PRINTD("f: %d; t: %d; %s: %s\n",pkt->packet[MAC_SRC_16],pkt->packet[MAC_DEST_16],
+	//						pkt->packet[MAC_FRAME_CTRL] == 0x41?"broadcast":"unicast",
+	//						is_radio_tx_acked(state)?"acked":"nacked");
+					if (is_radio_tx_acked(state)) // if it was a broadcast it's always true that was sent
+					{
+						radio_tx_acked(FALSE);
+						res =  PACKET_SEND_OK;
+						break;
+					}else
+					{
+						NODESTAT_UPDATE(radionack);
+						UNET_RADIO.get(TX_STATUS,&state);
+						PRINTF_MAC(1,"TX SEM OK, but not acked! Cause: %u \r\n", state);
+					}
+				}
+				else
 				{
-					NODESTAT_UPDATE(radionack);
-					UNET_RADIO.get(TX_STATUS,&state);
-					PRINTF_MAC(1,"TX SEM OK, but not acked! Cause: %u \r\n", state);
+	//				tick = (ostick_t) OSGetTickCount();
+	//				printf("timeout: %n\n",(uint32_t)(ticked-tick));
+					NODESTAT_UPDATE(txfailed);
+					UNET_RADIO.get(RADIO_STATUS,&state);
+					PRINTF_MAC(1,"TX ISR Timeout. RADIO STATE: %u \r\n", state);
+
+					PRINTD("DEBUG: fatal error, radio stuck\n");
+
+					/* isso nunca deve acontecer, pois indica travamento do r�dio */
+	//				NODESTAT_UPDATE(radioresets);
+					extern void RadioReset(void);
+					RadioReset();
+
 				}
 			}
-			else
-			{
-//				tick = (ostick_t) OSGetTickCount();
-//				printf("timeout: %n\n",(uint32_t)(ticked-tick));
-				NODESTAT_UPDATE(txfailed);
-				UNET_RADIO.get(RADIO_STATUS,&state);
-				PRINTF_MAC(1,"TX ISR Timeout. RADIO STATE: %u \r\n", state);
 
-				PRINTD("DEBUG: fatal error, radio stuck\n");
-
-				/* isso nunca deve acontecer, pois indica travamento do r�dio */
-//				NODESTAT_UPDATE(radioresets);
-				extern void RadioReset(void);
-				RadioReset();
-
-			}
+			// Some error occurred, just delay it to another try
 			DelayTask(delay_retry);
 		}
-		if(tx_retries == 0) NODESTAT_UPDATE(txmaxretries);
+		if(tx_retries == 0){
+			NODESTAT_UPDATE(txmaxretries);
+		}
 
 	releaseRadio();
 
@@ -531,6 +564,7 @@ uint8_t unet_packet_input(packet_t *p)
 				{
 					PRINTF_ROUTER(2,"RX ROUTE_ADV\r\n");
 				}
+
 
 				uint16_t src_addr16 = (r->info[PKTINFO_SRC16H] << 8) + r->info[PKTINFO_SRC16L];
 
