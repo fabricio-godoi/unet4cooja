@@ -44,6 +44,9 @@ TIMEOUT(86400000); // 24 hours timeout
 // This will store all motes information (simplify the script)
 var motes = sim.getMotes();
 
+// After all motes get at least one route, wait to network settle
+var bm_network_settle_time = 15000; // default: 15s
+
 // This delay is intended to clear the network buffer (hop/hop)
 var buffer_clean_delay = 10000; // wait ten seconds to ensure that the buffer is clear
 
@@ -60,7 +63,7 @@ var bm_interval = 4000; //default
 var bm_interval_dec = 500;
 
 // Minimum interval value acceptable in ms
-var bm_min_interval = 1000;
+var bm_min_interval = 2000;
 
 // This is used to create the output log
 var os_name = "none";
@@ -238,9 +241,6 @@ log.log("Packts/mote: "+bm_packets+"\n");
 log.log("Transmission interval: "+bm_interval+"ms\n");
 log.log("==========================================\n");
 
-// Create output folder
-var output_folder = log_path+"/"+os_name+"/"+os_net+"_"+sim_title+"_"+today;
-if(!new File(output_folder).exists())  new File(output_folder).mkdirs();
 
 //Benchmark input control commands
 //When received this message from every client node, the simulation can start 
@@ -289,7 +289,7 @@ var startup_time = time;
 log.log("Path creation time: "+tick2time(startup_time)+"\n");
 
 // Wait ten seconds to be sure that the network is stable
-GENERATE_MSG(10000, "sim:sleep");
+GENERATE_MSG(bm_network_settle_time, "sim:sleep");
 do{
 	YIELD_THEN_WAIT_UNTIL(msg.equals("sim:sleep") || msg.startsWith("#L "));
 	if(msg.startsWith("#L ")){
@@ -314,10 +314,6 @@ for(var k = bm_interval; k >= bm_min_interval; k-=bm_interval_dec){
 }
 log.log("Total simulation time expected: "+ms2time(total_simulation_time)+"\n");
 log.log("Simulation expected to finish at: "+tick2time(time+total_simulation_time*1000)+"\n");
-
-//Create a report file with final results
-var report = new FileWriter(output_folder+"/report.csv");
-report.write("Interval (ms);Success (%)\n");
 
 do{
 
@@ -389,8 +385,11 @@ for(var k = 0; k < motes.length; k++){
 //
 //  Extract data from motes
 //
-
 log.log("Retrieving data from motes ["+motes.length+"] ...\n");
+
+//Create output folder
+var output_folder = log_path+"/"+os_name+"/"+os_net+"_"+sim_title+"_"+today;
+if(!new File(output_folder).exists())  new File(output_folder).mkdirs();
 
 // Create file
 var output = new FileWriter(output_folder+"/"+bm_interval+".csv");
@@ -446,7 +445,16 @@ output.write("\n\nRoute:\n"+log_route+"\n");
 
 output.close(); /// Save file
 
+
+//Create a report file with final results
+var report = new File(output_folder+"/report.csv");
+if(!report.exists()){
+	report = new FileWriter(report);
+	report.write("Interval (ms);Success (%)\n");
+}
+else report = new FileWriter(report);
 report.write(bm_interval+";"+(total_pkts_rcvd/total_pkts_sent)*100+"\n");
+report.close(); // save the file
 log.log("Success rate: "+((total_pkts_rcvd/total_pkts_sent)*100)+"%\n");
 //############################################################
 //
