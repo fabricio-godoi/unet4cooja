@@ -49,9 +49,9 @@
 #define CC2520_PIN_CLOCK_INIT
 
 #define CC2520_INT_ENABLE()
-#define CC2520_INTERRUPT_FLAG_CLR()		CC2520_CLEAR_FIFOP_INT()   //from contiki
-#define CC2520_INTERRUPT_ENABLE_CLR()   CC2520_DISABLE_FIFOP_INT()
-#define CC2520_INTERRUPT_ENABLE_SET()   CC2520_ENABLE_FIFOP_INT()
+#define CC2520_INTERRUPT_FLAG_CLR()		CC2520_CLEAR_FIFOP_INT()/*; CC2520_CLEAR_SFD_INT()*/   //from contiki
+#define CC2520_INTERRUPT_ENABLE_CLR()   CC2520_DISABLE_FIFOP_INT()/*; CC2520_DISABLE_SFD_INT()*/
+#define CC2520_INTERRUPT_ENABLE_SET()   CC2520_ENABLE_FIFOP_INT()/*; CC2520_ENABLE_SFD_INT()*/
 
 /* Spi port Mapping */
 #define CC2520_SPI_PORT_INIT()			spi_init()
@@ -64,7 +64,6 @@
 #define CC2520_CSn_LOW()                  CC2520_CS_LOW     						///< CS pin = 0
 #define CC2520_CSn_HIGH()                 CC2520_CS_HIGH     						///< CS pin = 1
 
-// TODO put it in the cc2520 init function (portability with brtos)
 #define CC2520_PIN_INIT()        			\
 do {                                       	\
    CC2520_PIN_CLOCK_INIT;					\

@@ -126,7 +126,7 @@ enum cc2520_address {
 #define CC2520_RSSI                    0x038
 #define CC2520_RSSISTAT                0x039
 #define CC2520_TXFIFO_BUF              0x03A
-#define CC2520_RXFIRST                 0x03C  /// use this to get rx lenght? (ack return)
+#define CC2520_RXFIRST                 0x03C
 #define CC2520_RXFIFOCNT               0x03E
 #define CC2520_TXFIFOCNT               0x03F
 
@@ -210,7 +210,7 @@ enum cc2520_address {
 #define CC2520_INS_ECBXO               0x76
 #define CC2520_INS_INC                 0x78
 #define CC2520_INS_ABORT               0x7F
-#define CC2520_INS_REGRD               0x80
+#define CC2520_INS_REGRD               0x80 // Data below address 0x40
 #define CC2520_INS_REGWR               0xC0
 
 #endif /* CC2520_CONST_H */

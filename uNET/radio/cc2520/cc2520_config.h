@@ -69,11 +69,27 @@
     CC2520_CLEAR_FIFOP_INT();                         \
   } while(0)
 
+/* CC2520 falling edge trigger for external (SFD). */
+/* On TX SFD goes to 1 at the start of TX and goes to 0
+ * at the end of TX */
+#define CC2520_SFD_INT_INIT() do {                  \
+    CC2520_SFD_PORT(IES) |= BV(CC2520_SFD_PIN);  \
+    CC2520_CLEAR_SFD_INT();                         \
+  } while(0)
+
+
 /* FIFOP on external interrupt 0. */
 /* FIFOP on external interrupt 0. */
 #define CC2520_ENABLE_FIFOP_INT()          do { P1IE |= BV(CC2520_FIFOP_PIN); } while (0)
 #define CC2520_DISABLE_FIFOP_INT()         do { P1IE &= ~BV(CC2520_FIFOP_PIN); } while (0)
 #define CC2520_CLEAR_FIFOP_INT()           do { P1IFG &= ~BV(CC2520_FIFOP_PIN); } while (0)
+
+
+/* SFD external pin interrupt */
+#define CC2520_ENABLE_SFD_INT()          do { P2IE |= BV(CC2520_SFD_PIN); } while (0)
+#define CC2520_DISABLE_SFD_INT()         do { P2IE &= ~BV(CC2520_SFD_PIN); } while (0)
+#define CC2520_CLEAR_SFD_INT()           do { P2IFG &= ~BV(CC2520_SFD_PIN); } while (0)
+
 
 /*
  * Enables/disables CC2520 access to the SPI bus (not the bus).
