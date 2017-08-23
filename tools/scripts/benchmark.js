@@ -452,7 +452,7 @@ if(!report.exists()){
 	report = new FileWriter(report);
 	report.write("Interval (ms);Success (%)\n");
 }
-else report = new FileWriter(report);
+else report = new FileWriter(report, true);  //append mode
 report.write(bm_interval+";"+(total_pkts_rcvd/total_pkts_sent)*100+"\n");
 report.close(); // save the file
 log.log("Success rate: "+((total_pkts_rcvd/total_pkts_sent)*100)+"%\n");
