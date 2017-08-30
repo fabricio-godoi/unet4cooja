@@ -38,8 +38,17 @@
 // TIMEOUT must be the first thing to set
 TIMEOUT(86400000); // 24 hours timeout
 
-// Set simulation parameters
-//var sim_time = 10*60*1000; // Simulation time h*m*s*ms
+// Get system information
+if(!msg.startsWith("server:")){ YIELD_THEN_WAIT_UNTIL(msg.startsWith("server:"));}
+var server_id = id;
+var server_mote = mote;
+var string = msg.replace("server: ","").split(" ");
+var os_name = string[0];
+var os_net = string[1]; //bm_nofmsgs = string[2];
+
+// This is used to create the output log
+var sim_title = sim.getTitle();
+var log_path = "/home/user/logs";
 
 // This will store all motes information (simplify the script)
 var motes = sim.getMotes();
@@ -57,27 +66,34 @@ var delay_between_runs = 2000; // wait two seconds to run another simulation
 var bm_packets = 100;	// value should not exceed 127
 
 // Transmission start interval in ms
-var bm_interval = 4000; //default
+var bm_interval = 4500; //default
 
 //Transmission interval decrease value rate is ms
 var bm_interval_dec = 500;
 
 // Minimum interval value acceptable in ms
-var bm_min_interval = 2000;
-
-// This is used to create the output log
-var os_name = "none";
-var os_net  = "none";
-var net_pkts= "null";
-var server_id = 0; // default
-var server_mote = null;
-var sim_title = sim.getTitle();
-var log_path = "/home/user/logs";
+var bm_min_interval = 1000;
 
 // Statistcs variables
 var motes_statistics = "UNET_NodeStat";
 var server_collection = "bm_pkts_recv";
 
+//Caculate total simulation time
+var total_simulation_time = 0;
+for(var k = bm_interval; k >= bm_min_interval; k-=bm_interval_dec){
+	total_simulation_time += bm_interval*bm_packets + buffer_clean_delay + delay_between_runs;
+}
+
+// Print simulation parameters
+log.log("==========================================\n");
+log.log("Simulation Parameters\n");
+log.log("Server ID: "+server_id+"\n");
+log.log("Server OS: "+os_name+"\n");
+log.log("OS Network: "+os_net+"\n");
+log.log("Packts/mote: "+bm_packets+"\n");
+log.log("Transmission interval: "+bm_interval+"ms\n");
+log.log("Total simulation time expected: "+ms2time(total_simulation_time)+"\n");
+log.log("==========================================\n");
 //// TODO need to add simulation environment configuration to output file
 
 //############################################################
@@ -107,14 +123,14 @@ return str;
 }
 //Parse time into mm:ss.mss
 function tick2time(t){
-	var minutes = Math.floor(t/(1000*1000*60))%60;
+	var minutes = Math.floor(t/(1000*1000*60));
 	var seconds = Math.floor(t/(1000*1000))%60;
 	var milisec = Math.floor(t/1000)%1000;
 	return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
 }
 //Parse time into mm:ss.mss
 function ms2time(t){
-	var minutes = Math.floor(t/(1000*60))%60;
+	var minutes = Math.floor(t/(1000*60));
 	var seconds = Math.floor(t/(1000))%60;
 	var milisec = t%1000;
 	return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
@@ -222,25 +238,8 @@ var BCM_END     = 0x0a; // Ends with '\n'
 
 //############################################################
 //
-//   Parameters gathering
+//   Wait OS Startup
 //
-
-// Get some simulation information
-YIELD_THEN_WAIT_UNTIL(msg.startsWith("server:"));
-server_id = id;
-var server_mote = mote;
-var string = msg.replace("server: ","").split(" ");
-//var string = "brtos unet 5".split(" ");
-os_name = string[0]; os_net = string[1]; //bm_nofmsgs = string[2];
-log.log("==========================================\n");
-log.log("Simulation Parameters\n");
-log.log("Server ID: "+server_id+"\n");
-log.log("Server OS: "+os_name+"\n");
-log.log("OS Network: "+os_net+"\n");
-log.log("Packts/mote: "+bm_packets+"\n");
-log.log("Transmission interval: "+bm_interval+"ms\n");
-log.log("==========================================\n");
-
 
 //Benchmark input control commands
 //When received this message from every client node, the simulation can start 
@@ -299,22 +298,14 @@ do{
 	}
 }while(!msg.equals("sim:sleep"));
 log.log("Stabilization total time: "+tick2time(time)+"\n");
+// Estimate time to finish
+log.log("Simulation expected to finish at: "+tick2time(time+total_simulation_time*1000)+"\n");
 
 
 //############################################################
 //
 //  Simulation start
 //
-
-
-// Caculate total simulation time
-total_simulation_time = 0;
-for(var k = bm_interval; k >= bm_min_interval; k-=bm_interval_dec){
-	total_simulation_time += bm_interval*bm_packets + buffer_clean_delay + delay_between_runs;
-}
-log.log("Total simulation time expected: "+ms2time(total_simulation_time)+"\n");
-log.log("Simulation expected to finish at: "+tick2time(time+total_simulation_time*1000)+"\n");
-
 do{
 
 // Configure all motes with correctly interval and network size
@@ -329,7 +320,7 @@ for(var k = 0; k < motes.length; k++){
 }
 
 log.log("==========================================\n");
-log.log("Simulation expected to finish at: "+tick2time(time+bm_interval*bm_packets*1000)+"\n");
+log.log("Run expected to finish at: "+tick2time(time+bm_interval*bm_packets*1000)+"\n");
 
 //Start all motes, server first
 BMC_COMMAND = [(0xFF & BMC_START|BMC_STATS), BCM_END];
