@@ -749,7 +749,6 @@ int32_t cc2520_get_rxfifo(uint8_t *buf, uint16_t buf_len) {
 		}
 	}
 
-	NODESTAT_UPDATE(radiorx);
 	return len;
 }
 /*---------------------------------------------------------------------------*/
@@ -792,6 +791,7 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 		rxfifo_length = getreg(CC2520_RXFIFOCNT);
 		// Probably it's an ACK message, if isn't it's just garbage
 		if ( rxfifo_length == CC2520_ACK_LENGTH ){
+			NODESTAT_UPDATE(radiorx);
 //				CC2520_READ_FIFO_BUF(ack_packet, CC2520_ACK_LENGTH);
 			// if(ack_packet[1] & 2) // it's ack
 			// TODO check to be sure that is ACK packet FRM.CTRL = 2
@@ -810,6 +810,7 @@ interrupt(PORT1_VECTOR) Radio_RX_Interrupt(void) {
 		// Just received some information
 		else if( rxfifo_length > CC2520_ACK_LENGTH && rxfifo_length < CC2520_MAX_PACKET_LENGTH){
 			RADIO_STATE_SET(RX_OK);
+			NODESTAT_UPDATE(radiorx);
 			// Don't enable RX, since it'll be read by OS
 		}
 		// Not a valid information
