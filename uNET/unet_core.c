@@ -786,7 +786,8 @@ void UNET_Router_Down_Task(void)
 				 */
 				if(packet_get_dest_addr16(r) != link_get_parent_addr16()){
 					// Route has changed between transmissions, update the packet next hop
-					printf("rup: was %d now %d\n",packet_get_dest_addr16(r), link_get_parent_addr16());
+					PRINTF_ROUTER(1,"ROUTE DEST UPDATE: was %d now is %d \r\n",
+							packet_get_dest_addr16(r), link_get_parent_addr16());
 					unet_update_packet_down_dest();
 				}
 
