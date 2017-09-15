@@ -102,6 +102,7 @@ struct netstat_t
 
 	netst_cnt_t overbuf;      // packets dropped by RX buffer overflow
 	netst_cnt_t dropped;      // packets dropped by hops limit, route not available
+	netst_cnt_t corrupted;    // application packet corrupted, does not have the size informed
 
 	/// Physical
 	netst_cnt_t radiotx;	  // packets sent in the radio
