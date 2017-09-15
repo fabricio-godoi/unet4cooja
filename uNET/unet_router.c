@@ -402,11 +402,7 @@ uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_ret
 				{
 					NODESTAT_UPDATE(txed);
 					UNET_RADIO.get(RADIO_STATE,&state);
-					// From; to; msg type; acked?
-	//				PRINTD("f: %d; t: %d; %s: %s\n",pkt->packet[MAC_SRC_16],pkt->packet[MAC_DEST_16],
-	//						pkt->packet[MAC_FRAME_CTRL] == 0x41?"broadcast":"unicast",
-	//						is_radio_tx_acked(state)?"acked":"nacked");
-					if (is_radio_tx_acked(state)) // if it was a broadcast it's always true that was sent
+					if (is_radio_tx_acked(state))
 					{
 						radio_tx_acked(FALSE);
 						res =  PACKET_SEND_OK;
@@ -420,8 +416,6 @@ uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_ret
 				}
 				else
 				{
-	//				tick = (ostick_t) OSGetTickCount();
-	//				printf("timeout: %n\n",(uint32_t)(ticked-tick));
 					NODESTAT_UPDATE(txfailed);
 					UNET_RADIO.get(RADIO_STATUS,&state);
 					PRINTF_MAC(1,"TX ISR Timeout. RADIO STATE: %u \r\n", state);
