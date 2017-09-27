@@ -1,0 +1,22 @@
+This program install a plugin directly in the Cooja source code,
+which allows parse the uNet packets in readble information
+in the RadioLogger plugin.
+
+To install just type "./install.sh default" that all source files needed
+will be created or replaced.
+"default" means '/user/contiki/tools/cooja' directory.
+
+If the Cooja is in another directory, you can use the installer
+as follow "./install.sh <YOUR_DIRECTORY>".
+
+
+Files afected by this installation:
+1- <COOJA_DIR>/java/org/contikios/cooja/plugins/RadioLogger.java
+2- <COOJA_DIR>/java/org/contikios/cooja/plugins/analyzers/MicroNetAnalyzer.java
+
+A backup is created in the installation folder if any bug occour, it can be just
+manually replaced in the specifics folders.
+
+Thank you!
+Best regards.
+
