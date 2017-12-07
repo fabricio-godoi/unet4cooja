@@ -399,8 +399,6 @@ uint8_t OSDelayTask(ostick_t time_wait)
         
         // Change context
         // Return to task when occur delay overflow
-//        PRINTF("Will enter change contex!\n");
-
         ChangeContext();
         
 
@@ -575,7 +573,6 @@ uint8_t BRTOSStart(void)
   ////////////////////////////////////////////////////////////  
   /////            Initialize Tick Timer                 /////
   ////////////////////////////////////////////////////////////  
-  PRINTF("===========================\n Start scheduling \n===========================\n");
   TickTimerSetup();
 
 #if (COMPUTES_TASK_LOAD == 1)
@@ -612,6 +609,7 @@ void PreInstallTasks(void)
   TaskAlloc = 0;
   iStackAddress = 0;
 #if (!BRTOS_DYNAMIC_TASKS_ENABLED)
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
   StackAddress = (stack_pointer_t) &STACK;
 #endif
   
