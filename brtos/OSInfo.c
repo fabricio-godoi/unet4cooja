@@ -135,6 +135,7 @@ void OSTaskList(char *string)
 
 			  // Print the task stack size
 			  UserEnterCritical();
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 			  sp_address = (uint32_t*)ContextTask[j].StackPoint;
 			  if (j == 1)
 			  {
@@ -146,6 +147,7 @@ void OSTaskList(char *string)
 			  }else
 			  {
 				  #if (!BRTOS_DYNAMIC_TASKS_ENABLED)
+#pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 				  sp_end = (uint32_t*)ContextTask[j-1].StackInit;
 				  #else
 				  sp_end = (uint32_t*)ContextTask[j].StackInit;
@@ -189,6 +191,7 @@ void OSTaskList(char *string)
 			  #ifdef WATERMARK
 			  VirtualStack = ContextTask[j].StackInit - ((uint32_t)sp_address + 4);
 			  #else
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
 			  VirtualStack = ContextTask[j].StackInit - ((uint32_t)sp_address + (i*4));
 			  #endif
 			  #else
