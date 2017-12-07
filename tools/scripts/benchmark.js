@@ -1,30 +1,34 @@
 // 
 // \brief  Log mote statistics in csv file
 // \author Fabrício Negrisolo de Godoi
-// \date   06-04-2017
-// /// TODO UPDATE THIS INFO
+// \date   2017-10-18
 // \details
 //   This script is performed in 4 steps:
-// 1st - Definition of used variables and function, in which:
-//       - motes_statistcs is the variable that store all motes statistics,
-//         "header" variable must be the same type of this structure;
+// 1st - Definition of used variables and motes_statistics function, in which:
+//       - motes_statistics is the variable that store all motes statistics,
+//         "header" variable must have the same structure of motes_statistics;
 //       - server_collection is a server variable informing the packets
 //         received by each client;
 //       - "header" must contains the exact format of the statistics
 //         variable in the mote write in .csv;
-//       - server information must got from server mote from UART in 
-//         this exact format: "server: os_name longest_path"
+//       - server information is got from UART parsing server messages in 
+//         this exact format: "server: os_name network_type"
 // 2nd - Simulation initialization (UART):
 //       - Get server information and inform each mote the network size
 // 3rd - Simulation running (UART):
 //       - Wait the network stabilization time ...
-//           ... Each client has a path to server + delay time (10s)
+//           ... Each client has a path to server + delay time (eg. 10s)
 //       - Start all motes (clean statistics and start the processes) ...
-//           ... wait run time defined by sim_time;
-//       - After sim_time, stop all motes (statistcs and processes)
+//       - Wait each mote send "BMCD_DONE" after sending the number of packets
+//         setup in bm_packets variable;
+//       - After all motes sent "BMCD_DONE", stop all motes (statistcs and processes);
+//       - Wait buffering clear time "buffer_clean_delay";
 // 4th - Results collections (RAM):
 //       - Read the motes memory collecting the statistics specified by
 //         header directly from the memory;
+// 5th - Run next simulation with new transmission rate:
+//       - New transmission rate is calc by: "bm_interval-bm_interval_dec"
+//       - Runs end when bm_interval is less than bm_min_interval;
 //
 // Obs.:
 //  Serial at: cooja.interfaces.SerialPort.java
@@ -66,7 +70,7 @@ var delay_between_runs = 2000; // wait two seconds to run another simulation
 var bm_packets = 100;	// value should not exceed 127
 
 // Transmission start interval in ms
-var bm_interval = 4500; //default
+var bm_interval = 10000; //default
 
 //Transmission interval decrease value rate is ms
 var bm_interval_dec = 500;
@@ -81,7 +85,7 @@ var server_collection = "bm_pkts_recv";
 //Caculate total simulation time
 var total_simulation_time = 0;
 for(var k = bm_interval; k >= bm_min_interval; k-=bm_interval_dec){
-	total_simulation_time += bm_interval*bm_packets + buffer_clean_delay + delay_between_runs;
+	total_simulation_time += k*bm_packets + buffer_clean_delay + delay_between_runs;
 }
 
 // Print simulation parameters
@@ -123,17 +127,27 @@ return str;
 }
 //Parse time into mm:ss.mss
 function tick2time(t){
-	var minutes = Math.floor(t/(1000*1000*60));
-	var seconds = Math.floor(t/(1000*1000))%60;
 	var milisec = Math.floor(t/1000)%1000;
-	return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
+	var seconds = Math.floor(t/(1000*1000))%60;
+	var minutes = Math.floor(t/(1000*1000*60));
+	if(minutes >= 60){
+	     var hours = minutes/60;
+	     minutes = minutes%60;
+	     return ""+Math.floor(hours)+":"+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
+	}
+	else return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
 }
 //Parse time into mm:ss.mss
 function ms2time(t){
 	var minutes = Math.floor(t/(1000*60));
 	var seconds = Math.floor(t/(1000))%60;
 	var milisec = t%1000;
-	return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
+	if(minutes >= 60){
+	     var hours = minutes/60;
+	     minutes = minutes%60;
+	     return ""+Math.floor(hours)+":"+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
+	}
+	else return ""+("0"+minutes).slice(-2)+":"+("0"+seconds).slice(-2)+"."+("00"+milisec).slice(-3);
 }
 //Parse an byte and put it as hex string
 function byte2hex(byte) {
