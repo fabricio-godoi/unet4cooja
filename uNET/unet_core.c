@@ -796,9 +796,9 @@ void UNET_Router_Down_Task(void)
 						r->info[PKTINFO_SEQNUM]);
 			}
 
-			/* aguarda o ACK mesmo que n�o tenha recebido o ACK da MAC,
+			/* aguarda o ACK mesmo que não tenha recebido o ACK da MAC,
 			 * pois o pacote pode ter sido transmitido com sucesso,
-			 * mas o ACK da MAC foi perdido. O link de l� pra c� est� ruim, mas pode
+			 * mas o ACK da MAC foi perdido. O link de lá pra cá está ruim, mas pode
 			 * ser que o ACK chegue mesmo assim. */
 			r->state = PACKET_WAITING_ACK;
 
@@ -806,11 +806,11 @@ void UNET_Router_Down_Task(void)
 			run_trickle(&timer_down_retry);
 			if(OSSemPend(Router_Down_Ack_Received, timer_down_retry.t) != TIMEOUT)
 			{
-				/* isto � s� p/ debug, pois quando o sem�foro � postado,
+				/* isto é só p/ debug, pois quando o semáforo é postado,
 				 * o estado do pacote passa para ACKED.
-				 * Como o buffer do pacote ser� liberado,
-				 * dever�amos garantir que o sem�foro valha zero,
-				 * por isso talvez seja necess�rio mudar p/ sem�foro bin�rio. */
+				 * Como o buffer do pacote será liberado,
+				 * deveríamos garantir que o semáforo valha zero,
+				 * por isso talvez seja necessário mudar p/ semáforo binário. */
 				if(r->state != PACKET_ACKED)
 				{
 					PRINTF_LINK(1,"PACKET STATE ERROR: at %u \r\n", __LINE__);

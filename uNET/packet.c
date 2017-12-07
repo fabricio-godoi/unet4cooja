@@ -64,8 +64,6 @@ void packet_release_down(void)
 	OSEnterCritical();
 	packet_down.state = PACKET_IDLE;
 	OSExitCritical();
-	// Check if there is new parent in the route
-	link_check_parent_update();
 }
 /*--------------------------------------------------------------------------------------------*/
 uint8_t packet_acquire_up(void)
