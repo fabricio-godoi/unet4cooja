@@ -33,10 +33,13 @@
  *
  *  Created on: Mar 7, 2017
  *      Author: Fabricio Negrisolo de Godoi
- *     Details: Source from Contiki OS
+ *     Details: Source from Contiki OS adapted to BRTOS
  */
 
 #include "spi.h"
+
+/** This enables some interrupt routines, not fully tested yet */
+#define SPI_ENABLE_INTERRUPT_FEATURE 0
 
 /*
  * This is SPI initialization code for the MSP430X architecture.
@@ -48,19 +51,27 @@
 #define BV(x) (1 << x)
 #endif
 
-unsigned char spi_busy = 0;
+/** Serial queue */
+#if SPI_ENABLE_INTERRUPT_FEATURE
+BRTOS_Queue *SpiRecvQueue;
+#endif
 
 /*
  * Initialize SPI bus.
  */
 void spi_init(void) {
-  // Initialize ports for communication with SPI units.
 
+
+	/** Create queue to read data */
+//	assert(OSQueueCreate(128, &SpiRecvQueue) == ALLOC_EVENT_OK);
+
+
+  // Initialize ports for communication with SPI units.
   UCB0CTL1 |=  UCSWRST;                //reset usci
   UCB0CTL1 |=  UCSSEL_2;               //smclk while usci is reset
   UCB0CTL0 = ( UCMSB | UCMST | UCSYNC | UCCKPL); // MSB-first 8-bit, Master, Synchronous, 3 pin SPI master, no ste, watch-out for clock-phase UCCKPH
-
   UCB0BR1 = 0x00;
+//  UCB0BR0 = 0x00;
   UCB0BR0 = 0x02;
 
 //  UCB0MCTL = 0;                       // Dont need modulation control.
@@ -78,17 +89,58 @@ void spi_init(void) {
   UCB0CTL1 &= ~UCSWRST;         // Remove RESET before enabling interrupts
 
   //Enable UCB0 Interrupts
-//  UCB0IE |= UCTXIE;              // Enable USCI_B0 TX Interrupts
-//  UCB0IE |= UCRXIE;              // Enable USCI_B0 RX Interrupts
+#if SPI_ENABLE_INTERRUPT_FEATURE
+  UCB0IE |= UCTXIE;              // Enable USCI_B0 TX Interrupts
+  UCB0IE |= UCRXIE;              // Enable USCI_B0 RX Interrupts
+#endif
 }
 
 
-void spi_write(char *a, short l){
-	short i;
-	for(i=0;i<l;i++) SPI_WRITE(a[i]);
-}
+//void spi_write(char *a, short l){
+//	short i;
+//	for(i=0;i<l;i++) SPI_WRITE(a[i]);
+//}
+//
 
-void spi_read(char *a, short l){
-	short i;
-	for(i=0;i<l;i++) SPI_READ(a[i]);
+//uint8_t spi_read(uint8_t *a, uint8_t l){
+	//	for(i=0;i<l;i++) SPI_READ(a[i]);
+//	uint8_t i=0;
+//	while(i<l){
+//		if(OSQueuePend(SpiRecvQueue, &a[i++], 1) == TIMEOUT){ // wait 1ms for each byte
+//			// Return SPI error
+//			return -1;
+//		}
+//	}
+//	return i;
+//}
+
+#if SPI_ENABLE_INTERRUPT_FEATURE
+
+volatile uint8_t receive_byte;
+extern INT8U iNesting;
+#define interrupt(x) void __attribute__((interrupt (x)))
+interrupt(USCI_B0_VECTOR) Spi_Interrupt(void) {
+	// ************************
+	// Interruption entry
+	// ************************
+	OS_INT_ENTER();
+
+	// Check if it's RX interruption
+	if (UCB0IFG & UCRXIFG){
+		UCB0IFG &= ~UCRXIFG;
+
+		// Data received put it in the queue
+		receive_byte = UCB0RXBUF; /* Read input data */
+		if (OSQueuePost(SpiRecvQueue, receive_byte) == BUFFER_UNDERRUN) {
+			OSQueueClean(SpiRecvQueue);
+		}
+
+	} else UCB0IFG = 0;
+
+	// ************************
+	// Interruption exit
+	// ************************
+	OS_INT_EXIT();
+	// ************************
 }
+#endif /// SPI_ENABLE_INTERRUPT_FEATURE
