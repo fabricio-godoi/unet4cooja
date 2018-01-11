@@ -28,7 +28,6 @@
 #define TASKS_H_
 
 #include "BRTOSConfig.h"
-#include "benchmark.h"
 
 #if TASK_WITH_PARAMETERS == 1
 void System_Time(void *parameters);
