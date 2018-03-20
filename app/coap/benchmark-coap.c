@@ -283,6 +283,8 @@ void client_chunk_handler(void *response)
 #define SEND_INTERVAL	1000
 #define SEND_INTERVAL_MIN_DELAY 200
 
+volatile ostick_t wait_time;
+
 #if (TASK_WITH_PARAMETERS == 1)
 void unet_benchmark(void *param){
 	(void)param;
@@ -317,11 +319,8 @@ void unet_benchmark(void){
 
 	//	ostick_t send_interval = bm_num_of_nodes*(1000/BENCHMARK_MAX_PACKETS_SECOND);
 	ostick_t send_time; // Time to send
-	ostick_t wait_time; // Minimum time to wait, complement send_time
-#if (BM_CHK_TXRX_TIME_EN == TRUE)
+//	ostick_t wait_time; // Minimum time to wait, complement send_time
 	ostick_t ticked, tick;
-#endif
-
 
 	//	send_time = random_get()%send_interval;
 	//	send_time = send_interval * node_id / bm_num_of_nodes;
@@ -361,9 +360,7 @@ void unet_benchmark(void){
 		// Send message to coordinator
 		if(bm_en_comm){
 
-#if (BM_CHK_TXRX_TIME_EN == TRUE)
 			ticked = (ostick_t) OSGetTickCount();
-#endif
 
 			// Refresh the source of message
 			bm_packet.from = node_id;
@@ -379,8 +376,8 @@ void unet_benchmark(void){
 							      request,
 								  client_chunk_handler);
 
-#if (BM_CHK_TXRX_TIME_EN == TRUE)
 			tick = (ostick_t) OSGetTickCount();
+#if (BM_CHK_TXRX_TIME_EN == TRUE)
 			BM_PRINTF("client: msg [%d] sent delay was %n\n",bm_packet.msg_number,(uint32_t)(tick-ticked));
 #else
 			BM_PRINTF("client: msg [%d] sent\n",bm_packet.msg_number);
@@ -392,10 +389,10 @@ void unet_benchmark(void){
 				printf(BENCHMARK_CLIENT_DONE);
 			}
 			else{
-//				wait_time =  (ostick_t)bm_interval -  (ostick_t)(tick - ticked);
-////				printf("client: next delay %n\n",wait_time);
-//				if(wait_time == 0 || wait_time > bm_interval) wait_time = NO_TIMEOUT;
-				wait_time = NO_TIMEOUT;
+				wait_time = (ostick_t)bm_interval -  (ostick_t)(tick - ticked);
+//				printf("client: next delay %n\n",wait_time);
+				if(wait_time == 0 || wait_time > bm_interval) wait_time = NO_TIMEOUT;
+//				wait_time = NO_TIMEOUT; // No delay between runs
 			}
 		}
 

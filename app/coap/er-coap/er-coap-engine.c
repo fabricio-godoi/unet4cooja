@@ -412,7 +412,7 @@ void coap_blocking_request(unet_transport_t *conn, coap_packet_t *request,
                                                               state.
                                                               transaction->
                                                               packet);
-
+//      printf("Sending %d\n",request->mid);
       coap_send_transaction(state.transaction);
       PRINTF("Requested #%lu (MID %u)\n", state.block_num, request->mid);
 
@@ -420,7 +420,7 @@ void coap_blocking_request(unet_transport_t *conn, coap_packet_t *request,
       OSSemPend(coap_request, 0);
 
       if(!state.response) {
-        PRINTF("Server not responding\n");
+        PRINTF("Server not responding or NON message return\n");
         return;
       }
 

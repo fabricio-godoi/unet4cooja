@@ -88,6 +88,7 @@ coap_new_transaction(uint16_t mid, addr64_t *addr, uint16_t port)
   if(t) {
     t->mid = mid;
     t->retrans_counter = 0;
+    t->callback = NULL;
 
     /* save client address */
     memcpy(&t->addr,addr,sizeof(addr64_t));
@@ -139,6 +140,7 @@ coap_send_transaction(coap_transaction_t *t)
     } else {
       /* timed out */
       PRINTF("Timeout\n");
+//      printf("coap drop %d\n",t->mid);
       restful_response_handler callback = t->callback;
       void *callback_data = t->callback_data;
 
@@ -148,12 +150,19 @@ coap_send_transaction(coap_transaction_t *t)
       coap_clear_transaction(t);
 
       if(callback) {
-    	  printf("free\n");
         callback(callback_data, NULL);
       }
     }
   } else {
+	restful_response_handler callback = t->callback;
+	void *callback_data = t->callback_data;
     coap_clear_transaction(t);
+
+    /// TODO must check with the Contiki what happens, because the code is being stucked at the coap_sending_block at the semaphore
+    // Despite of the NON messages being responded, there are no need to wait a ACK
+    if(callback) {
+    	callback(callback_data, NULL);
+    }
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -161,7 +170,7 @@ void
 coap_clear_transaction(coap_transaction_t *t)
 {
   if(t) {
-    PRINTF("Freeing transaction %u: %p\n", t->mid, t);
+//    printf("Freeing transaction %u: %p\n", t->mid, t);
 
     // Stop and delete the timer
     OSTimerStop(t->retrans_timer, TRUE);
@@ -191,7 +200,7 @@ coap_check_transactions()
   for(t = (coap_transaction_t *)list_head(transactions_list); t; t = t->next) {
 	if(t->retrans_timer->state == TIMER_STOPPED){
       ++(t->retrans_counter);
-      PRINTF("Retransmitting %u (%u)\n", t->mid, t->retrans_counter);
+//      printf("Retransmitting %u (%n)\n", t->mid, t->retrans_counter);
       coap_send_transaction(t);
 
       // Restart the timer if the max retransmission isn't reached

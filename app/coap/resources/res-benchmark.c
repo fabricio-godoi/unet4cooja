@@ -64,7 +64,7 @@ res_post_handler(void *request, void *response, uint8_t *buffer, uint16_t prefer
 		OSSemPost(callback);
 
 		// Return "OK" the message has been received
-		REST.set_response_status(response, REST.status.OKAY);
+//		REST.set_response_status(response, REST.status.OKAY);
 	}
 }
 
