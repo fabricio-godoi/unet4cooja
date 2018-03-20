@@ -62,11 +62,11 @@ enum {UNET_VERBOSE_PHY = 0, UNET_VERBOSE_MAC, UNET_VERBOSE_LINK, UNET_VERBOSE_RO
 
 
 #if WINNT
-#define REQUIRE(x,dothis)			if(!(x)) { PRINTF("Invalid value at %s:%d\r\n", __FILE__, __LINE__); dothis}
+#define REQUIRE(x,dothis)			if(!(x)) {dothis}
 #define REQUIRE_FOREVER(x)			REQUIRE(x, while(1){})
 #define REQUIRE_OR_EXIT(x, exit)	REQUIRE(x, goto exit;)
 #else
-#define REQUIRE(x, dothis)			if(!(x)) { PRINTF("Invalid value at %s:%d\r\n", __FILE__, __LINE__); dothis}
+#define REQUIRE(x, dothis)			if(!(x)) {dothis}
 #define REQUIRE_FOREVER(x)			REQUIRE(x, while(1){DelayTask(1000);})
 #define REQUIRE_OR_EXIT(x, exit)	REQUIRE(x, goto exit;)
 #endif
