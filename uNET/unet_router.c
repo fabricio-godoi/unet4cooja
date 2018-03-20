@@ -16,15 +16,6 @@ packet_t packet_up;
 packet_t packet_down;
 packet_t packet_multicast_up;
 
-
-//#define DEBUG_ENABLED
-#ifdef DEBUG_ENABLED
-#define PRINTD(...) PRINTF(__VA_ARGS__)
-#else
-#define PRINTD(...)
-#endif
-
-
 struct
 {
 	uint16_t entry_index;
@@ -312,7 +303,7 @@ uint8_t unet_packet_down_send(uint8_t payload_len)
     packet_info_set(&packet_down, PKTINFO_SIZE,
     		payload_len + UNET_NWK_HEADER_SIZE + UNET_LLC_HEADER_SIZE + UNET_MAC_HEADER_SIZE);
 
-    /// Essa fun��o deve retornar o estado tb
+    /// Essa função deve retornar o estado tb
     if (unet_router_down() == TRUE)
     {
     	NODESTAT_UPDATE(netapptx);
@@ -330,15 +321,11 @@ uint8_t unet_router_adv(void)
 
 	uint8_t hop_limit = node_data_get(NODE_DISTANCE);
 
-//	PRINTF("debug: router_adv\n");
-
 	if(hop_limit >= ROUTE_TO_BASESTATION_LOST) return RESULT_DESTINATION_UNREACHABLE;
-//	PRINTF("debug: reachable\n");
 
 	hop_limit = 0xFF; /* set max hops */
 
 	if(packet_acquire_down() == PACKET_ACCESS_DENIED) return RESULT_DESTINATION_UNREACHABLE;
-//	PRINTF("debug: access granted\n");
 
 	/* create router adv packet */
 	memset(&packet_down.packet, 0, sizeof(packet_down.packet));
@@ -419,8 +406,6 @@ uint8_t unet_packet_output(packet_t *pkt, uint8_t tx_retries, uint16_t delay_ret
 					NODESTAT_UPDATE(txfailed);
 					UNET_RADIO.get(RADIO_STATUS,&state);
 					PRINTF_MAC(1,"TX ISR Timeout. RADIO STATE: %u \r\n", state);
-
-					PRINTD("DEBUG: fatal error, radio stuck\n");
 
 					/* isso nunca deve acontecer, pois indica travamento do r�dio */
 	//				NODESTAT_UPDATE(radioresets);
@@ -522,7 +507,7 @@ uint8_t unet_packet_input(packet_t *p)
 			 */
 			r=&packet_down; /* try to use output buffer */
 
-			/* todo: fazer uma fun��o apenas, passando o ponteiro do pacote e
+			/* todo: fazer uma função apenas, passando o ponteiro do pacote e
 			 * o estado que vai estar em caso de sucesso no acesso ao buffer */
 			if(packet_acquire_down() == PACKET_ACCESS_DENIED)
 			{
@@ -539,8 +524,8 @@ uint8_t unet_packet_input(packet_t *p)
 			{
 				ack_req = ACK_REQ_TRUE;
 
-				/* todo: este c�digo poder� ser colocado mais adiante, pois o resultado n�o � usado aqui
-				 * s� para debug.  */
+				/* todo: este código poderá ser colocado mais adiante, pois o resultado não é usado aqui
+				 * só para debug.  */
 				if(p->info[PKTINFO_DUPLICATED] == TRUE)
 				{
 					PRINTF_LINK(1,"RX PACKET DUPLICATE! from %u, SN: %u\r\n",
