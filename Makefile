@@ -2,6 +2,25 @@
 # Makefile for the project BRTOS_MSP430
 ###############################################################################
 
+ifdef UNET_DEVICE_TYPE  
+DEFINES = -DUNET_DEVICE_TYPE=$(UNET_DEVICE_TYPE)
+#$(info $$UNET_DEVICE_TYPE is [${UNET_DEVICE_TYPE}]) ## Debug includes
+
+# Must be defined by DUNET_DEVICE_TYPE, see code below
+APPLICATION =
+ifeq ($(UNET_DEVICE_TYPE),PAN_COORDINATOR)
+APPLICATION = _server
+endif
+ifeq ($(UNET_DEVICE_TYPE),ROUTER)
+APPLICATION = _client
+endif
+
+#else # if not defined, compile both
+#$(strip $(shell make UNET_DEVICE_TYPE=PAN_COORDINATOR))
+#$(stip $(shell make UNET_DEVICE_TYPE=ROUTER))
+#$(exit)
+
+endif #UNET_DEVICE_TYPE
 		  
 ############# system binaries & configurations ################
 CC      	= msp430-elf-gcc
@@ -39,8 +58,11 @@ OUTPUTS = $(PROJECT_DIR)/objects
 BIN = $(PROJECT_DIR)/bin
 
 ## Select the platform that will be used
+# if MCU is not selected, choose wismote as default
+ifndef MCU
 MCU = msp430f5437
 PLATFORM = unkown
+endif
 ifeq ($(MCU),msp430f5437)
 PLATFORM = wismote
 endif
@@ -49,21 +71,6 @@ PLATFORM = z1
 endif
 ifeq ($(MCU),msp430f1611)
 PLATFORM = sky
-endif
-
-ifdef UNET_DEVICE_TYPE  
-DEFINES = -DUNET_DEVICE_TYPE=$(UNET_DEVICE_TYPE)
-#$(info $$UNET_DEVICE_TYPE is [${UNET_DEVICE_TYPE}]) ## Debug includes
-
-# Must be defined by DUNET_DEVICE_TYPE, see code below
-APPLICATION =
-ifeq ($(UNET_DEVICE_TYPE),PAN_COORDINATOR)
-APPLICATION = _server
-endif
-ifeq ($(UNET_DEVICE_TYPE),ROUTER)
-APPLICATION = _client
-endif
-
 endif
 
 #$(info $$APPLICATION is [${APPLICATION}]) ## Debug includes
@@ -125,18 +132,14 @@ SOURCES = app/main.c \
 		  uNET/radio/cc2520/cc2520.c \
 		  uNET/radio/radio_null.c \
 		  app/tasks.c \
+		  app/benchmark.c \
 		  lib/stdio.c \
+		  lib/random.c \
 		  debug/debugdco.c
-
-
-#		  app/terminal/terminal.c \
-#		  app/app.c \
-#		  app/terminal_commands.c \
-#		  app/tests.c \
 
 ############## flags ##################
 GFLAGS	 = -mlarge -mcode-region=either # general flags -Wall
-CFLAGS   = -mmcu=$(MCU) $(GFLAGS) -gstabs+ -Os -Wall -Wunused -fno-builtin-fprintf -fno-builtin-printf $(INCLUDES) $(DEFINES) # "-g -> essa opção apresenta erros ao ler o arquivo .elf pelo mspsim"
+CFLAGS   = -mmcu=$(MCU) $(GFLAGS) -gstabs+ -Os -Wall -Wunused -fno-builtin-fprintf -fno-builtin-printf -fno-builtin-putc $(INCLUDES) $(DEFINES) # "-g -> essa opção apresenta erros ao ler o arquivo .elf pelo mspsim"
 ASFLAGS  = -mmcu=$(MCU) $(GFLAGS) -x assembler-with-cpp -w,-gstabs+
 LDFLAGS  = -mmcu=$(MCU) $(GFLAGS) -Wl,-Map=$(TARGET).map -L$(LIBRARY)
 
