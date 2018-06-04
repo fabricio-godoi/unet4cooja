@@ -8,6 +8,7 @@
 #include "stdio.h"
 
 #include <stdarg.h>
+#include <stddef.h>
 
 //** Configuration
 #define PAD_RIGHT 1
@@ -144,6 +145,18 @@ static int print(char **out, const char *format, va_list a)
 				width += *format - '0';
 			}
             switch(c = *format++) {
+            	case '.': // Check for precision print
+            		if((c = *format++) == '*') {
+            			if((c = *format++) == 's') {
+            				unsigned int length = (unsigned int)va_arg(a, unsigned int);
+            				char *s = (char*)va_arg(a, char*);
+            				for(;length>0;length--){
+            					size += putc(out, *s);
+            					s++;
+            				}
+            			}
+            		}
+            		break;
 				case 'x':
 				case 'X':
 					i = va_arg(a, int);
@@ -180,6 +193,11 @@ static int print(char **out, const char *format, va_list a)
                     if(c == 'l' &&  n < 0) n = -n, size += putc(out, '-');
                     size += xtoa(out, (unsigned long)n, dv);
                     break;
+                case 'p': // print the pointer address
+                	 n = va_arg(a, long);
+					if(c == 'l' &&  n < 0) n = -n, size += putc(out, '-');
+					size += xtoa(out, (unsigned long)n, dv);
+                	break;
                 case 0: goto end;
                 default: goto bad_fmt;
             }
@@ -208,7 +226,6 @@ int printf(const char *format, ...)
 	return print((void*)0, format, a);
 }
 
-
 /**
  * \brief Transform a string in a given format with a list of arguments and put it in a predefined output.
  * 		  Formats current supported x,X,d,i,u,c,s,l,n.
@@ -224,3 +241,19 @@ int sprintf(char *out, const char *format, ...)
 	va_start(a, format);
 	return print(&out, format, a);
 }
+
+/**
+ * \brief Transform a string in a given format with a list of arguments and put it in a predefined output.
+ * 		  Formats current supported x,X,d,i,u,c,s,l,n.
+ * \param out it's a pointer to a pointer (e.g. string, buffer, memory region)
+ * \param format it's the format that the string will be formated (e.g. ("Hello %s","world"))
+ * \param ... it's the arguments that will be parsed be va_start
+ * \return the number of character put in the output
+ */
+//int snprintf(char *out, int n, const char *format, ...)
+//{
+//	va_list a;
+//
+//	va_start(a, format);
+//	return print(&out, format, a);
+//}
