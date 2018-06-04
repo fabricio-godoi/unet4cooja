@@ -350,7 +350,8 @@ void SwitchContext(void);
 */
 #define SYSTEM_CLOCK			configCPU_CLOCK_HZ 					// 16 MHz - SMCLK = MCLK/2
 #define CRYSTAL_CLOCK			configCPU_ACLK_HZ					// 32.768 Hz
-#define SYSTEM_TICK				CRYSTAL_CLOCK/configTICK_RATE_HZ	// 1ms
+#define SYSTEM_TICK				(CRYSTAL_CLOCK/configTICK_RATE_HZ)	// 1ms
+#define CLOCK_SECOND			(CRYSTAL_CLOCK/SYSTEM_TICK)			// 1 second
 
 // Check variable boundary, the register only supports 16bits
 #if (SYSTEM_TICK > 65535)
