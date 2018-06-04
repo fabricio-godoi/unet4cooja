@@ -8,6 +8,8 @@
 #ifndef BENCHMARK_H_
 #define BENCHMARK_H_
 
+#include <stdint.h>
+
 /**
  * Configure the max app payload length, this value is dependent of
  * the network layer, so check what is the maximum network payload length
@@ -75,8 +77,11 @@ typedef union{
 	}c;
 }Benchmark_Control_Type;
 
+
+// INFO setup to be with 32 bytes of data
 typedef struct{
-	uint32_t tick;
+	uint16_t unused;
+	uint16_t from;
 	uint16_t msg_number;
 	uint8_t  message[BENCHMARK_MESSAGE_LENGTH];
 }Benchmark_Packet_Type;

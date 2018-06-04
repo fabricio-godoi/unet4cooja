@@ -94,7 +94,7 @@ static void benchmark_parse_control(uint8_t data[]){
 	if(bm_ctrl.c.set){
 		bm_num_of_nodes = data[1];
 		bm_num_of_packets = data[2];
-		bm_interval = (uint16_t)(data[3]<<7) + data[4];
+		bm_interval = (uint16_t)(data[3]<<7) + data[4]; // TODO need to get the last 2bits lost in communication method by JS
 		BM_PRINTF("benchmark: Nodes: %d; Interval %d\n",bm_num_of_nodes,bm_interval);
 //		if(getchar(&bm_num_of_nodes,0) == READ_BUFFER_OK){
 //			printf("Number of motes: %u\n",bm_num_of_nodes);
