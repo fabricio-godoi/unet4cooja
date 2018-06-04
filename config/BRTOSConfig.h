@@ -67,7 +67,9 @@
 
 /// Define the maximum number of Tasks to be Installed
 /// must always be equal or higher to NumberOfInstalledTasks
-#define NUMBER_OF_TASKS (INT8U)9 // TODO check this number for uNET  (uNet = 12)
+//#define NUMBER_OF_TASKS (INT8U)9 // TODO check this number for uNET  (uNet = 12)
+/// TODO increment with coap
+#define NUMBER_OF_TASKS (INT8U)12 // with coap
 
 /// Define if OS Trace is active
 #define OSTRACE 0
@@ -104,7 +106,7 @@
 #define BRTOS_QUEUE_EN			1
 
 /// Enable or disable dynamic queue controls
-#define BRTOS_DYNAMIC_QUEUE_ENABLED	0 // TODO: uNet, uses it? (uNet = 1)
+#define BRTOS_DYNAMIC_QUEUE_ENABLED	0
 
 /// Enable or disable queue 16 bits controls
 #define BRTOS_QUEUE_16_EN      0
@@ -114,7 +116,7 @@
 
 /// Defines the maximum number of semaphores\n
 /// Limits the memory allocation for semaphores
-#define BRTOS_MAX_SEM          14
+#define BRTOS_MAX_SEM          15+4 // 4 for transactions
 
 /// Defines the maximum number of mutexes\n
 /// Limits the memory allocation for mutex
@@ -122,7 +124,7 @@
 
 /// Defines the maximum number of mailboxes\n
 /// Limits the memory allocation mailboxes
-#define BRTOS_MAX_MBOX         5
+#define BRTOS_MAX_MBOX         0
 
 /// Defines the maximum number of queues\n
 /// Limits the memory allocation for queuesAPP3_Priority
@@ -144,7 +146,7 @@
 /// Stack Defines
 /// msp430f2274 1KB RAM (total)
 /// msp430f2617 8kb RAM /// msp430f5437 16kb RAM
-#define HEAP_SIZE 			2*4096 // 4400 its just enough for 9 tasks
+#define HEAP_SIZE 			2*4096// 4400 its just enough for 9 tasks ;;;; TODO need to review all HEAP_SIZE to adjust the CoAP application
 
 // Queue heap defines
 // Configurado com 32 bytes p/ filas (para filas)
@@ -170,5 +172,6 @@
 #endif // STDIO_PRINTF_EN
 #else
 #define PRINTF(...)
+#define assert(x) if(!(x)){ while(1); }
 #endif // PRINTF_EN
 
